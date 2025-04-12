@@ -36,7 +36,7 @@ app.post("/upload/:id", upload.single("file"), async (req, res) => {
 
     let start = 0;
     let index = 0;
-    const uploadedChunks = [];
+    const uploadedChunks = []
 
     while (start < buffer.length) {
       const end = Math.min(start + CHUNK_SIZE, buffer.length);

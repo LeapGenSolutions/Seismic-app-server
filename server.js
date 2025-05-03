@@ -19,54 +19,46 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-
-const upload = multer({ storage: multer.memoryStorage() });
-
-app.post("/upload/:id", upload.single("file"), async (req, res) => {
-  try {
-    const id = req.params.id;
-    const CHUNK_SIZE = 4 * 1024 * 100;
-    const buffer = req.file.buffer;    
-    const accountKey = atob("MUUvQmt0dXFvbTBZQTlEZDNISHowOVJMVmM2M1ZQZzBNTjV0NFM0ZWptWkFoN1BneFZpNWxvUFFJYmp3NzdOVWZ3cUdTYXNjQ1NYditBU3RFL2ZHaEE9PQ==")
+// Initialize Azure Blob Storage
+const accountKey = atob("MUUvQmt0dXFvbTBZQTlEZDNISHowOVJMVmM2M1ZQZzBNTjV0NFM0ZWptWkFoN1BneFZpNWxvUFFJYmp3NzdOVWZ3cUdTYXNjQ1NYditBU3RFL2ZHaEE9PQ==")
     const blobServiceClient = BlobServiceClient.fromConnectionString(
       "DefaultEndpointsProtocol=https;AccountName=doctorpatientrecordings;AccountKey="+accountKey+";EndpointSuffix=core.windows.net"
     );
+const containerClient = blobServiceClient.getContainerClient(
+  "doctor-patient-recordings"
+);
 
-    const containerClient = blobServiceClient.getContainerClient("doctor-patient-recordings");
+// Configure multer for in-memory chunk handling
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
-    let start = 0;
-    let index = 0;
-    const uploadedChunks = []
+// Endpoint for progressive chunk uploads
+app.post(
+  "/upload-chunk/:id/:chunkIndex",
+  upload.single("chunk"),
+  async (req, res) => {
+    try {
+      const { id, chunkIndex } = req.params;
+      const chunk = req.file.buffer;
 
-    while (start < buffer.length) {
-      const end = Math.min(start + CHUNK_SIZE, buffer.length);
-      const chunk = buffer.slice(start, end);
+      const blobName = `${id}/recording_chunk_${Date.now()}_${chunkIndex}.webm`;
+      const blobClient = containerClient.getBlockBlobClient(blobName);
 
-      const chunkBlobName = `${id}/${req.file.originalname}_part${index}`;
-      const chunkBlobClient = containerClient.getBlockBlobClient(chunkBlobName);
-
-      await chunkBlobClient.uploadData(chunk, {
-        blobHTTPHeaders: { blobContentType: req.file.mimetype },
+      await blobClient.uploadData(chunk, {
+        blobHTTPHeaders: { blobContentType: "video/webm" },
       });
 
-      console.log(`Uploaded chunk: ${chunkBlobName}, size: ${chunk.length}`);
-      uploadedChunks.push(chunkBlobName);
-
-      start = end;
-      index++;
+      res.status(200).json({
+        success: true,
+        chunkIndex,
+        blobName,
+      });
+    } catch (error) {
+      console.error("Chunk upload failed:", error);
+      res.status(500).json({ error: "Chunk upload failed" });
     }
-
-    res.status(200).json({
-      message: "Chunks uploaded as separate blobs",
-      chunkCount: index,
-      blobs: uploadedChunks,
-    });
-  } catch (error) {
-    console.error("Error uploading chunks as separate blobs:", error);
-    res.status(500).json({ error: "Chunk upload failed" });
   }
-});
-
+);
 
 io.on("connection", (socket) => {
   socket.emit("me", socket.id);

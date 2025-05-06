@@ -61,18 +61,44 @@ app.post(
 );
 
 io.on("connection", (socket) => {
-  socket.emit("me", socket.id);
+  console.log("User connected:", socket.id);
 
-  socket.on("disconnect", () => {
-    socket.broadcast.emit("callEnded");
-  });
+  socket.on("join-room", ({ roomId, name }) => {
+    socket.join(roomId);
+    socket.data.name = name; // store name in socket session
+    socket.to(roomId).emit("user-joined", { id: socket.id, name });
 
-  socket.on("callUser", ({ userToCall, signalData, from, name }) => {
-    io.to(userToCall).emit("callUser", { signal: signalData, from, name });
-  });
+    socket.on("offer", (data) => {
+      socket.to(data.target).emit("offer", {
+        sdp: data.sdp,
+        sender: socket.id,
+      });
+    });
 
-  socket.on("answerCall", (data) => {
-    io.to(data.to).emit("callAccepted", data.signal);
+    socket.on("answer", (data) => {
+      socket.to(data.target).emit("answer", {
+        sdp: data.sdp,
+        sender: socket.id,
+      });
+    });
+
+    socket.on("leave-room", (room) => {
+      socket.leave(room);
+      io.to(room).emit("user-left", socket.id);
+    });
+
+    socket.on("ice-candidate", (data) => {
+      socket.to(data.target).emit("ice-candidate", {
+        candidate: data.candidate,
+        sender: socket.id,
+      });
+    });
+
+    socket.on("disconnect", () => {
+      socket
+        .to(roomId)
+        .emit("user-disconnected", { id: socket.id, name: socket.data.name });
+    });
   });
 });
 

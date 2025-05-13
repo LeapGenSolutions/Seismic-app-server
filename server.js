@@ -1,4 +1,5 @@
-const app = require("express")();
+const express = require("express");
+const app = express();
 const server = require("http").createServer(app);
 const { BlobServiceClient } = require("@azure/storage-blob");
 const cors = require("cors");
@@ -19,46 +20,38 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-// Initialize Azure Blob Storage
-const accountKey = atob("MUUvQmt0dXFvbTBZQTlEZDNISHowOVJMVmM2M1ZQZzBNTjV0NFM0ZWptWkFoN1BneFZpNWxvUFFJYmp3NzdOVWZ3cUdTYXNjQ1NYditBU3RFL2ZHaEE9PQ==")
-    const blobServiceClient = BlobServiceClient.fromConnectionString(
-      "DefaultEndpointsProtocol=https;AccountName=doctorpatientrecordings;AccountKey="+accountKey+";EndpointSuffix=core.windows.net"
-    );
-const containerClient = blobServiceClient.getContainerClient(
-  "doctor-patient-recordings"
+// Azure Blob Setup
+const accountKey = atob("RVFCQUNpQW5sN0lYMXlzd1hqMVY1WWMzZGVxd21EWS9pMGg2cWNFOTFFYUQ1ZWxySjVyTW92VGpiRnc2UG9FS0xKVEVCRXFJejZpQitBU3RpSjBwWlE9PQ==");
+const blobServiceClient = BlobServiceClient.fromConnectionString(
+  `DefaultEndpointsProtocol=https;AccountName=seismicaml3776953091;AccountKey=${accountKey};EndpointSuffix=core.windows.net`
 );
+const containerClient = blobServiceClient.getContainerClient("seismic-dev-container");
 
-// Configure multer for in-memory chunk handling
+// Multer config
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Endpoint for progressive chunk uploads
-app.post(
-  "/upload-chunk/:id/:chunkIndex",
-  upload.single("chunk"),
-  async (req, res) => {
-    try {
-      const { id, chunkIndex } = req.params;
-      const chunk = req.file.buffer;
+// Chunk Upload Endpoint
+app.post("/upload-chunk/:id/:chunkIndex", upload.single("chunk"), async (req, res) => {
+  try {
+    const { id, chunkIndex } = req.params;
+    const chunk = req.file.buffer;
 
-      const blobName = `${id}/recording_chunk_${Date.now()}_${chunkIndex}.webm`;
-      const blobClient = containerClient.getBlockBlobClient(blobName);
+    const blobName = `testuser/${id}/meeting_part${chunkIndex}.webm`;
+    const blobClient = containerClient.getBlockBlobClient(blobName);
 
-      await blobClient.uploadData(chunk, {
-        blobHTTPHeaders: { blobContentType: "video/webm" },
-      });
+    await blobClient.uploadData(chunk, {
+      blobHTTPHeaders: { blobContentType: "video/webm" },
+    });
 
-      res.status(200).json({
-        success: true,
-        chunkIndex,
-        blobName,
-      });
-    } catch (error) {
-      console.error("Chunk upload failed:", error);
-      res.status(500).json({ error: "Chunk upload failed" });
-    }
+    res.status(200).json({ success: true, chunkIndex, blobName });
+  } catch (error) {
+    console.error("Chunk upload failed:", error);
+    res.status(500).json({ error: "Chunk upload failed" });
   }
-);
+});
+
+
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);

@@ -8,16 +8,20 @@ const cors = require("cors");
 
 config();
 
-const CORS_ORIGIN_BASE_URL =
-  process.env.CORS_ORIGIN_BASE_URL || "http://localhost:3000";
+// const CORS_ORIGIN_BASE_URL =
+//   process.env.CORS_ORIGIN_BASE_URL || "http://localhost:3000";
 const PORT = 8080;
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CORS_ORIGIN_BASE_URL },
+  cors: { origin: "*" },
 });
 
 app.get("/", (req, res) => {

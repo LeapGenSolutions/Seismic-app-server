@@ -13,15 +13,20 @@ config();
 const PORT = process.env.PORT || 8080;
 
 const app = express();
+const allowedOrigin = process.env.CORS_ORIGIN_BASE_URL || "https://victorious-mushroom-08b7e7d0f.4.azurestaticapps.net"; // set this in .env
+
 app.use(cors({
-  origin: "*",
+  origin: allowedOrigin,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*" },
+  cors: {
+    origin: allowedOrigin,
+    methods: ["GET", "POST"],
+  }
 });
 
 app.get("/", (req, res) => {

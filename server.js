@@ -10,7 +10,7 @@ config();
 
 // const CORS_ORIGIN_BASE_URL =
 //   process.env.CORS_ORIGIN_BASE_URL || "http://localhost:3000";
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 const app = express();
 app.use(cors({

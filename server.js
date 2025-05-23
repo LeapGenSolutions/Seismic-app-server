@@ -5,7 +5,7 @@ const { config } = require("dotenv");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const multer = require("multer");
 const cors = require("cors");
-const { fetchAllItems } = require("./cosmosClient");
+const { fetchAllAppointments, fetchAllPatients } = require("./cosmosClient");
 
 config();
 
@@ -31,7 +31,7 @@ app.get("/", (req, res) => {
 
 app.get("/api/appointments", async (req, res) => {
     try {
-        const items = await fetchAllItems();
+        const items = await fetchAllAppointments();
         res.json(items);
     } catch (err) {
         // console.error("Error fetching items:", err);
@@ -39,16 +39,20 @@ app.get("/api/appointments", async (req, res) => {
     }
 });
 
+app.get("/api/patients", async (req, res) => {
+    try {
+        const items = await fetchAllPatients();
+        res.json(items);
+    } catch (err) {
+        // console.error("Error fetching items:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+
 // Azure Blob Setup
-const storageAccountKey = atob(
-  "RVFCQUNpQW5sN0lYMXlzd1hqMVY1WWMzZGVxd21EWS9pMGg2cWNFOTFFYUQ1ZWxySjVyTW92VGpiRnc2UG9FS0xKVEVCRXFJejZpQitBU3RpSjBwWlE9PQ=="
-);
-const storageBlobServiceClient = BlobServiceClient.fromConnectionString(
-  `DefaultEndpointsProtocol=https;AccountName=seismicaml3776953091;AccountKey=${storageAccountKey};EndpointSuffix=core.windows.net`
-);
-const storageContainerClient = storageBlobServiceClient.getContainerClient(
-  "seismic-dev-container"
-);
+const storageBlobServiceClient = BlobServiceClient.fromConnectionString(process.env.RECORDINGS_BLOB_CONNECTION_STRING);
+const storageContainerClient = storageBlobServiceClient.getContainerClient(process.env.RECORDINGS_BLOB_CONTAINER);
 
 // Multer config
 const storage = multer.memoryStorage();

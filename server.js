@@ -5,12 +5,12 @@ const { config } = require("dotenv");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const multer = require("multer");
 const cors = require("cors");
-const { fetchAllAppointments, fetchAllPatients } = require("./cosmosClient");
+const { fetchAllAppointments, fetchAllPatients, 
+  fetchSOAPByAppointment, fetchBillingByAppointment,
+  fetchSummaryByAppointment, fetchTranscriptByAppointment } = require("./cosmosClient");
 
 config();
 
-// const CORS_ORIGIN_BASE_URL =
-//   process.env.CORS_ORIGIN_BASE_URL || "http://localhost:3000";
 const PORT = process.env.PORT || 8080;
 
 const app = express();
@@ -30,25 +30,92 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/appointments", async (req, res) => {
-    try {
-        const items = await fetchAllAppointments();
-        res.json(items);
-    } catch (err) {
-        // console.error("Error fetching items:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
+  try {
+    const items = await fetchAllAppointments();
+    res.json(items);
+  } catch (err) {
+    // console.error("Error fetching items:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.get("/api/patients", async (req, res) => {
-    try {
-        const items = await fetchAllPatients();
-        res.json(items);
-    } catch (err) {
-        // console.error("Error fetching items:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
+  try {
+    const items = await fetchAllPatients();
+    res.json(items);
+  } catch (err) {
+    // console.error("Error fetching items:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
+app.get("/api/soap/:id", async (req, res) => {
+  const { id } = req.params;
+  const partitionKey = req.query.userID;
+
+  if (!partitionKey) {
+    return res.status(400).json({ error: "partitionKey query param is required" });
+  }
+
+  try {
+    const item = await fetchSOAPByAppointment(id, partitionKey);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+});
+
+app.get("/api/billing/:id", async (req, res) => {
+  const { id } = req.params;
+  const partitionKey = req.query.userID;
+
+  if (!partitionKey) {
+    return res.status(400).json({ error: "partitionKey query param is required" });
+  }
+
+  try {
+    const item = await fetchBillingByAppointment(id, partitionKey);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+});
+
+app.get("/api/summary/:id", async (req, res) => {
+  const { id } = req.params;
+  const partitionKey = req.query.userID;
+
+  if (!partitionKey) {
+    return res.status(400).json({ error: "partitionKey query param is required" });
+  }
+
+  try {
+    const item = await fetchSummaryByAppointment(id, partitionKey);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+});
+
+app.get("/api/transcript/:id", async (req, res) => {
+  const { id } = req.params;
+  const partitionKey = req.query.userID;
+
+  if (!partitionKey) {
+    return res.status(400).json({ error: "partitionKey query param is required" });
+  }
+
+  try {
+    const item = await fetchTranscriptByAppointment(id, partitionKey);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+});
 
 // Azure Blob Setup
 const storageBlobServiceClient = BlobServiceClient.fromConnectionString(process.env.RECORDINGS_BLOB_CONNECTION_STRING);

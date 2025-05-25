@@ -5,9 +5,10 @@ const { config } = require("dotenv");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const multer = require("multer");
 const cors = require("cors");
-const { fetchAllAppointments, fetchAllPatients, 
+const { fetchAllAppointments, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment } = require("./cosmosClient");
+const { StreamClient } = require("@stream-io/node-sdk");
 
 config();
 
@@ -16,7 +17,7 @@ const PORT = process.env.PORT || 8080;
 const app = express();
 // const allowedOrigin = process.env.CORS_ORIGIN_BASE_URL || "https://victorious-mushroom-08b7e7d0f.4.azurestaticapps.net"; // set this in .env
 const allowedOrigin = "*"; // set this in .env
-
+app.use(express.json());
 app.use(cors({
   origin: allowedOrigin,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -114,6 +115,26 @@ app.get("/api/transcript/:id", async (req, res) => {
   } catch (err) {
     console.error("Error fetching item:", err);
     res.status(404).json({ error: "Item not found" });
+  }
+});
+
+app.post("/get-token", (req, res) => {
+  console.log(req.body);
+  
+  const { userId } = req.body;
+  const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
+
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+  try {
+    const validity = 3600; // 1 hour
+    const token = client.generateUserToken({ user_id: userId, validity_in_seconds: validity });
+    return res.json({ token });
+  } catch (error) {
+    console.log("Error generating token", error);
+    return res.status(500).json({ error: "Failed to generate token" });
   }
 });
 

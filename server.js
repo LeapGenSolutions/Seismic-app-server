@@ -147,15 +147,15 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // Chunk Upload Endpoint
-app.post(
-  "/upload-chunk/:id/:chunkIndex",
+app.post("/upload-chunk/:id/:chunkIndex",
   upload.single("chunk"),
   async (req, res) => {
     try {
       const { id, chunkIndex } = req.params;
       const chunk = req.file.buffer;
+      
 
-      const blobName = `testuser/${id}/meeting_part${chunkIndex}.webm`;
+      const blobName = `${req.query.username}/${id}/meeting_part${chunkIndex}.webm`;
       const blobClient = storageContainerClient.getBlockBlobClient(blobName);
 
       await blobClient.uploadData(chunk, {

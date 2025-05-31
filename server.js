@@ -1,14 +1,13 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
 const { config } = require("dotenv");
-const { BlobServiceClient } = require("@azure/storage-blob");
-const multer = require("multer");
 const cors = require("cors");
 const { fetchAllAppointments, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment } = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
+const { storageContainerClient, upload } = require("./blobClient");
+const { sendMessage } = require("./serviceBusClient");
 
 config();
 
@@ -120,7 +119,7 @@ app.get("/api/transcript/:id", async (req, res) => {
 
 app.post("/get-token", (req, res) => {
   console.log(req.body);
-  
+
   const { userId } = req.body;
   const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
 
@@ -138,22 +137,13 @@ app.post("/get-token", (req, res) => {
   }
 });
 
-// Azure Blob Setup
-const storageBlobServiceClient = BlobServiceClient.fromConnectionString(process.env.RECORDINGS_BLOB_CONNECTION_STRING);
-const storageContainerClient = storageBlobServiceClient.getContainerClient(process.env.RECORDINGS_BLOB_CONTAINER);
-
-// Multer config
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-// Chunk Upload Endpoint
 app.post("/upload-chunk/:id/:chunkIndex",
   upload.single("chunk"),
   async (req, res) => {
     try {
       const { id, chunkIndex } = req.params;
       const chunk = req.file.buffer;
-      
+
 
       const blobName = `${req.query.username}/${id}/meeting_part${chunkIndex}.webm`;
       const blobClient = storageContainerClient.getBlockBlobClient(blobName);
@@ -170,6 +160,17 @@ app.post("/upload-chunk/:id/:chunkIndex",
   }
 );
 
+app.post("/api/end-call/:appointmentId", async (req, res) => {
+  try {
+    const { appointmentId } = req.params
+    
+    await sendMessage(req.query.username, appointmentId)
+    res.status(200).json({ success: true })
+  } catch (error) {
+    res.status(500).json({ error: "Failed to send message to queue" })
+  }
+
+})
 
 httpServer.listen(PORT, () =>
   console.log(`server is running on port: ${PORT}`)

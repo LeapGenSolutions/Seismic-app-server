@@ -86,11 +86,25 @@ async function fetchTranscriptByAppointment(id, partitionKey) {
     
 }
 
+async function fetchReccomendationByAppointment(id, partitionKey) {
+    const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
+    const container = database.container("Recommendations_Container");
+
+    try {
+        const {resource} = await container.item(id,partitionKey).read()        
+        return resource
+    } catch (error) {
+        throw new Error("Item not found")
+    }
+    
+}
+
 module.exports = { 
     fetchAllAppointments, 
     fetchAllPatients, 
     fetchSOAPByAppointment,
     fetchBillingByAppointment,
     fetchSummaryByAppointment,
-    fetchTranscriptByAppointment
+    fetchTranscriptByAppointment,
+    fetchReccomendationByAppointment
 };

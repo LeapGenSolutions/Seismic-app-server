@@ -4,7 +4,8 @@ const { config } = require("dotenv");
 const cors = require("cors");
 const { fetchAllAppointments, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
-  fetchSummaryByAppointment, fetchTranscriptByAppointment } = require("./cosmosClient");
+  fetchSummaryByAppointment, fetchTranscriptByAppointment, 
+  fetchReccomendationByAppointment} = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -110,6 +111,23 @@ app.get("/api/transcript/:id", async (req, res) => {
 
   try {
     const item = await fetchTranscriptByAppointment(id, partitionKey);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+});
+
+app.get("/api/recommendations/:id", async (req, res) => {
+  const { id } = req.params;
+  const partitionKey = req.query.userID;
+
+  if (!partitionKey) {
+    return res.status(400).json({ error: "partitionKey query param is required" });
+  }
+
+  try {
+    const item = await fetchReccomendationByAppointment(id, partitionKey);
     res.json(item);
   } catch (err) {
     console.error("Error fetching item:", err);

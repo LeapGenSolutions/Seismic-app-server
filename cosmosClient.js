@@ -9,10 +9,10 @@ const databaseId = process.env.COSMOS_DATABASE;
 const client = new CosmosClient({ endpoint, key });
 
 async function fetchAllAppointments() {
-    
+
     const database = client.database(databaseId);
     const container = database.container("seismic_appointments");
-    
+
     const querySpec = {
         query: "SELECT * from c"
     };
@@ -22,10 +22,10 @@ async function fetchAllAppointments() {
 }
 
 async function fetchAllPatients() {
-    
+
     const database = client.database(databaseId);
     const container = database.container("patients");
-    
+
     const querySpec = {
         query: "SELECT * from c"
     };
@@ -39,12 +39,12 @@ async function fetchSOAPByAppointment(id, partitionKey) {
     const container = database.container("SOAP_Container");
 
     try {
-        const {resource} = await container.item(id,partitionKey).read()        
+        const { resource } = await container.item(id, partitionKey).read()
         return resource
     } catch (error) {
         throw new Error("Item not found")
     }
-    
+
 }
 
 async function fetchBillingByAppointment(id, partitionKey) {
@@ -52,12 +52,25 @@ async function fetchBillingByAppointment(id, partitionKey) {
     const container = database.container("Billing_Container");
 
     try {
-        const {resource} = await container.item(id,partitionKey).read()        
+        const { resource } = await container.item(id, partitionKey).read()
         return resource
     } catch (error) {
         throw new Error("Item not found")
     }
-    
+
+}
+
+async function patchBillingByAppointment(id, partitionKey, newBillingCode) {
+    const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
+    const container = database.container("Billing_Container");
+    try {
+        const { resource: item } = await container.item(id, partitionKey).read();        
+        const updatedItem = { ...item, "data": { "billing_codes": newBillingCode } };        
+        await container.item(id, partitionKey).replace(updatedItem);
+    } catch (err) {
+        console.error(err);
+        throw new Error({ error: "Failed to update item" });
+    }
 }
 
 async function fetchSummaryByAppointment(id, partitionKey) {
@@ -65,12 +78,12 @@ async function fetchSummaryByAppointment(id, partitionKey) {
     const container = database.container("Summaries_Container");
 
     try {
-        const {resource} = await container.item(id,partitionKey).read()        
+        const { resource } = await container.item(id, partitionKey).read()
         return resource
     } catch (error) {
         throw new Error("Item not found")
     }
-    
+
 }
 
 async function fetchTranscriptByAppointment(id, partitionKey) {
@@ -78,12 +91,12 @@ async function fetchTranscriptByAppointment(id, partitionKey) {
     const container = database.container("Transcription_Container");
 
     try {
-        const {resource} = await container.item(id,partitionKey).read()        
+        const { resource } = await container.item(id, partitionKey).read()
         return resource
     } catch (error) {
         throw new Error("Item not found")
     }
-    
+
 }
 
 async function fetchReccomendationByAppointment(id, partitionKey) {
@@ -91,20 +104,21 @@ async function fetchReccomendationByAppointment(id, partitionKey) {
     const container = database.container("Recommendations_Container");
 
     try {
-        const {resource} = await container.item(id,partitionKey).read()        
+        const { resource } = await container.item(id, partitionKey).read()
         return resource
     } catch (error) {
         throw new Error("Item not found")
     }
-    
+
 }
 
-module.exports = { 
-    fetchAllAppointments, 
-    fetchAllPatients, 
+module.exports = {
+    fetchAllAppointments,
+    fetchAllPatients,
     fetchSOAPByAppointment,
     fetchBillingByAppointment,
     fetchSummaryByAppointment,
     fetchTranscriptByAppointment,
-    fetchReccomendationByAppointment
+    fetchReccomendationByAppointment,
+    patchBillingByAppointment
 };

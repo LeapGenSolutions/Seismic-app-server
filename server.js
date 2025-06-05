@@ -4,8 +4,9 @@ const { config } = require("dotenv");
 const cors = require("cors");
 const { fetchAllAppointments, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
-  fetchSummaryByAppointment, fetchTranscriptByAppointment, 
-  fetchReccomendationByAppointment} = require("./cosmosClient");
+  fetchSummaryByAppointment, fetchTranscriptByAppointment,
+  fetchReccomendationByAppointment, 
+  patchBillingByAppointment} = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -83,6 +84,16 @@ app.get("/api/billing/:id", async (req, res) => {
     res.status(404).json({ error: "Item not found" });
   }
 });
+
+app.patch("/api/billing/:id", async (req, res) => {
+  try {
+    const { id } = req.params    
+    await patchBillingByAppointment(id, req.query.username, req.body.billing_codes)
+    res.status(200).json({ success: true })
+  } catch (error) {
+    res.status(500).json({ error: "Failed to send message to queue" })
+  }
+})
 
 app.get("/api/summary/:id", async (req, res) => {
   const { id } = req.params;
@@ -181,7 +192,7 @@ app.post("/upload-chunk/:id/:chunkIndex",
 app.post("/api/end-call/:appointmentId", async (req, res) => {
   try {
     const { appointmentId } = req.params
-    
+
     await sendMessage(req.query.username, appointmentId)
     res.status(200).json({ success: true })
   } catch (error) {

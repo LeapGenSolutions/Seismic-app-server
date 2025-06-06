@@ -5,8 +5,8 @@ const cors = require("cors");
 const { fetchAllAppointments, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment,
-  fetchReccomendationByAppointment, 
-  patchBillingByAppointment} = require("./cosmosClient");
+  fetchReccomendationByAppointment,
+  patchBillingByAppointment } = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -87,7 +87,7 @@ app.get("/api/billing/:id", async (req, res) => {
 
 app.patch("/api/billing/:id", async (req, res) => {
   try {
-    const { id } = req.params    
+    const { id } = req.params
     await patchBillingByAppointment(id, req.query.username, req.body.billing_codes)
     res.status(200).json({ success: true })
   } catch (error) {
@@ -199,6 +199,27 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
     res.status(500).json({ error: "Failed to send message to queue" })
   }
 
+})
+
+app.post("/webhook", async (res, req) => {
+  console.log(req.body);
+  
+  // const { type, recording_url, call_cid, created_at } = req.body;
+  // if (type === 'call.recording_ready') {
+  //   const newRecord = {
+  //     id: Date.now(),
+  //     callId: call_cid,
+  //     url: recording_url,
+  //     timestamp: created_at
+  //   };
+  //   // const existing = readData();
+  //   // writeData([...existing, newRecord]);
+
+  //   console.log(`✅ Saved recording for ${call_cid}`);
+  //   return res.status(200).json(newRecord);
+  // }
+
+  // res.sendStatus(204); // ignored
 })
 
 httpServer.listen(PORT, () =>

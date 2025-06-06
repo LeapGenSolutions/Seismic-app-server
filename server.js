@@ -10,6 +10,8 @@ const { fetchAllAppointments, fetchAllPatients,
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
+const { convertMp4FromUrl } = require("./convertWebmToMp4");
+const { default: axios } = require("axios");
 
 config();
 
@@ -188,6 +190,36 @@ app.post("/upload-chunk/:id/:chunkIndex",
     }
   }
 );
+
+app.post("/upload-chunk/v2/:id/:chunkIndex",
+  async (req, res) => {
+    try {
+      const { id, chunkIndex } = req.params;
+      const {videoUrl} = req.body;
+      if (!videoUrl) {
+        return res.status(400).json({ error: "videoUrl is required" });
+      }
+      // const chunk = req.file.buffer;
+
+      const response = await axios.get(videoUrl, { responseType: 'stream' });
+      const mp4Buffer = await convertMp4FromUrl(response.data);
+
+
+      const blobName = `${req.query.username}/${id}/meeting_part${chunkIndex}.mp4`;
+      const blobClient = storageContainerClient.getBlockBlobClient(blobName);
+
+      await blobClient.uploadData(mp4Buffer, {
+        blobHTTPHeaders: { blobContentType: "video/mp4" },
+      });
+
+      res.status(200).json({ success: true, chunkIndex, blobName });
+    } catch (error) {
+      console.error("Chunk upload failed:", error);
+      res.status(500).json({ error: "Chunk upload failed" });
+    }
+  }
+);
+
 
 app.post("/api/end-call/:appointmentId", async (req, res) => {
   try {

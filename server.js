@@ -5,11 +5,12 @@ const cors = require("cors");
 const { fetchAllAppointments, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment,
-  fetchReccomendationByAppointment, 
-  patchBillingByAppointment} = require("./cosmosClient");
-const { StreamClient } = require("@stream-io/node-sdk");
+  fetchReccomendationByAppointment,
+  patchBillingByAppointment } = require("./cosmosClient");
+const { StreamClient, StreamVideoClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
+const { default: axios } = require("axios");
 
 config();
 
@@ -87,7 +88,7 @@ app.get("/api/billing/:id", async (req, res) => {
 
 app.patch("/api/billing/:id", async (req, res) => {
   try {
-    const { id } = req.params    
+    const { id } = req.params
     await patchBillingByAppointment(id, req.query.username, req.body.billing_codes)
     res.status(200).json({ success: true })
   } catch (error) {
@@ -146,7 +147,7 @@ app.get("/api/recommendations/:id", async (req, res) => {
   }
 });
 
-app.post("/get-token", (req, res) => {
+app.post("/get-token", async (req, res) => {
   console.log(req.body);
 
   const { userId } = req.body;
@@ -199,6 +200,43 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
     res.status(500).json({ error: "Failed to send message to queue" })
   }
 
+})
+
+app.post("/webhook", async (req, res) => {
+  const { type } = req.body;
+  if (type === 'call.recording_ready') {
+    console.log(req.body);
+    const { call_cid } = req.body
+    const { url: videoUrl, filename } = req.body.call_recording;
+
+    try {
+      const response = await axios.get(videoUrl, { responseType: 'arraybuffer' });
+      const buffer = Buffer.from(response.data);
+      const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
+      const call = await client.video.getCall({
+        id: call_cid.split(":")[1],
+        type: "default"
+      })
+      const username = call.call.created_by.name
+      const meetingChunks = filename.split("_")
+      const meetingChunkName = meetingChunks[meetingChunks.length - 1]
+      const blobName = `${username}/${call_cid.split(":")[1]}/meeting_part${meetingChunkName}`;
+      console.log(call.call.created_by.name);
+      const blobClient = storageContainerClient.getBlockBlobClient(blobName);
+      await blobClient.uploadData(buffer, {
+        blobHTTPHeaders: {
+          blobContentType: 'video/mp4'
+        }
+      });
+      console.log(`✅ Saved recording for ${call_cid}`);
+      return res.status(200).json({ "success": "Uploaded the blob sucessfulyy" });
+    } catch (error) {
+      return res.status(500).json({ "message": "Uploaded the blob failed" });
+
+    }
+  }
+
+  // res.sendStatus(204); // ignored
 })
 
 httpServer.listen(PORT, () =>

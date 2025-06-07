@@ -223,16 +223,15 @@ app.post("/webhook", async (req, res) => {
   const { type } = req.body;
   if (type === 'call.recording_ready') {
     console.log(req.body);
-    console.log(typeof(req.body));
-    
-    const { url: videoUrl, call_cid, filename } = req.body.call_recording;
+    const { call_cid } = req.body
+    const { url: videoUrl, filename } = req.body.call_recording;
 
-    console.log(typeof(req.body.call_recording))
-    console.log(call_cid)
-    console.log(filename)
-    console.log(typeof(videoUrl))
-    console.log(typeof(call_cid))
-    console.log(typeof(filename))
+    // console.log(typeof (req.body.call_recording))
+    // console.log(call_cid)
+    // console.log(filename)
+    // console.log(typeof (videoUrl))
+    // console.log(typeof (call_cid))
+    // console.log(typeof (filename))
     const response = await axios.get(videoUrl, { responseType: 'arraybuffer' });
     // const mp4Buffer = await convertMp4FromUrl(response.data);
     const buffer = Buffer.from(response.data);

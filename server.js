@@ -157,6 +157,23 @@ app.post("/get-token", async (req, res) => {
     return res.status(400).json({ error: "Missing userId" });
   }
 
+  // const recData = `{
+  //     type: 'call.recording_ready',
+  //       created_at: '2025-06-06T21:23:00.427846676Z',
+  //         call_cid: 'default:2025-06-06_1015',
+  //           call_recording: {
+  //       filename: 'rec_default_2025-06-06_1015_720p_1749244938038.mp4',
+  //         url: 'https://us-east.stream-io-cdn.com/1388924/video/recordings/default_2025-06-06_1015/rec_default_2025-06-06_1015_720p_1749244938038.mp4?Expires=1750454580&Signature=e2JtlLOq0NhClHKvY8QeVoHEhF3yrCQjQnlkp9jrEVN-mK81xcUbupNkS8XFYeVgpOheJRiOvObO4uUcrwkDTeOph3HOI334lR1KDoEvuxIBfvNXI0-bz4CHy1DH7FPeKqpvVvIsjMjyNeiKKm5yfCk1y~NSFW229MUWaBJqUy~Vqp45LGFno2f9~SBIKJOshrk6wkzrZ1OfCwJSXSWDmmu8ERe~j5zVnTw6KRet3wFMyB7ajDWEs2Xr5OEa7ETf-V3OMFSesA9ek5KGzh0t76sF8mg9UErRg0RnrbRhOm6Vkyl-OznSd7fjvOCNj3bwK6b2fQ1GB1mzOTyqfAjCdw__&Key-Pair-Id=APKAIHG36VEWPDULE23Q',
+  //           start_time: '2025-06-06T21:22:22.891526071Z',
+  //             end_time: '2025-06-06T21:22:53.691208901Z',
+  //               session_id: '6680d971-2036-4627-9baa-84684a536f34'
+  //     },
+  //     egress_id: ""
+  //   }`
+  // const recDataJson = JSON.parse(recData)
+  // console.log(recDataJson);
+
+
   try {
     const validity = 3600; // 1 hour
     const token = client.generateUserToken({ user_id: userId, validity_in_seconds: validity });
@@ -206,8 +223,12 @@ app.post("/webhook", async (req, res) => {
   const { type } = req.body;
   if (type === 'call.recording_ready') {
     console.log(req.body);
-
+    console.log(typeof(req.body));
+    
     const { url: videoUrl, call_cid, filename } = req.body.call_recording;
+    console.log(typeof(videoUrl))
+    console.log(typeof(call_cid))
+    console.log(typeof(filename))
     const response = await axios.get(videoUrl, { responseType: 'arraybuffer' });
     // const mp4Buffer = await convertMp4FromUrl(response.data);
     const buffer = Buffer.from(response.data);
@@ -231,17 +252,20 @@ app.post("/webhook", async (req, res) => {
 
     // const blobClient = storageContainerClient.getBlockBlobClient(blobName);
     // writeData([...existing, newRecord]);
-    //     {
-    //    type: 'call.recording_ready',
-    //    created_at: '2025-06-06T21:23:00.427846676Z',
-    //    call_cid: 'default:2025-06-06_1015',
-    //    call_recording: {
-    //      filename: 'rec_default_2025-06-06_1015_720p_1749244938038.mp4',
-    //      url: 'https://us-east.stream-io-cdn.com/1388924/video/recordings/default_2025-06-06_1015/rec_default_2025-06-06_1015_720p_1749244938038.mp4?Expires=1750454580&Signature=e2JtlLOq0NhClHKvY8QeVoHEhF3yrCQjQnlkp9jrEVN-mK81xcUbupNkS8XFYeVgpOheJRiOvObO4uUcrwkDTeOph3HOI334lR1KDoEvuxIBfvNXI0-bz4CHy1DH7FPeKqpvVvIsjMjyNeiKKm5yfCk1y~NSFW229MUWaBJqUy~Vqp45LGFno2f9~SBIKJOshrk6wkzrZ1OfCwJSXSWDmmu8ERe~j5zVnTw6KRet3wFMyB7ajDWEs2Xr5OEa7ETf-V3OMFSesA9ek5KGzh0t76sF8mg9UErRg0RnrbRhOm6Vkyl-OznSd7fjvOCNj3bwK6b2fQ1GB1mzOTyqfAjCdw__&Key-Pair-Id=APKAIHG36VEWPDULE23Q',
-    //      start_time: '2025-06-06T21:22:22.891526071Z',
-    //      end_time: '2025-06-06T21:22:53.691208901Z',
-    //      session_id: '6680d971-2036-4627-9baa-84684a536f34'
-    //    }
+    // {
+    //   type: 'call.recording_ready',
+    //     created_at: '2025-06-06T21:23:00.427846676Z',
+    //       call_cid: 'default:2025-06-06_1015',
+    //         call_recording: {
+    //     filename: 'rec_default_2025-06-06_1015_720p_1749244938038.mp4',
+    //       url: 'https://us-east.stream-io-cdn.com/1388924/video/recordings/default_2025-06-06_1015/rec_default_2025-06-06_1015_720p_1749244938038.mp4?Expires=1750454580&Signature=e2JtlLOq0NhClHKvY8QeVoHEhF3yrCQjQnlkp9jrEVN-mK81xcUbupNkS8XFYeVgpOheJRiOvObO4uUcrwkDTeOph3HOI334lR1KDoEvuxIBfvNXI0-bz4CHy1DH7FPeKqpvVvIsjMjyNeiKKm5yfCk1y~NSFW229MUWaBJqUy~Vqp45LGFno2f9~SBIKJOshrk6wkzrZ1OfCwJSXSWDmmu8ERe~j5zVnTw6KRet3wFMyB7ajDWEs2Xr5OEa7ETf-V3OMFSesA9ek5KGzh0t76sF8mg9UErRg0RnrbRhOm6Vkyl-OznSd7fjvOCNj3bwK6b2fQ1GB1mzOTyqfAjCdw__&Key-Pair-Id=APKAIHG36VEWPDULE23Q',
+    //         start_time: '2025-06-06T21:22:22.891526071Z',
+    //           end_time: '2025-06-06T21:22:53.691208901Z',
+    //             session_id: '6680d971-2036-4627-9baa-84684a536f34'
+    //   },
+    //   egress_id: ""
+    // }
+
 
     console.log(`✅ Saved recording for ${call_cid}`);
     return res.status(200).json(newRecord);

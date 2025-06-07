@@ -226,6 +226,10 @@ app.post("/webhook", async (req, res) => {
     console.log(typeof(req.body));
     
     const { url: videoUrl, call_cid, filename } = req.body.call_recording;
+
+    console.log(typeof(req.body.call_recording))
+    console.log(call_cid)
+    console.log(filename)
     console.log(typeof(videoUrl))
     console.log(typeof(call_cid))
     console.log(typeof(filename))

@@ -6,7 +6,8 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment,
   fetchReccomendationByAppointment,
-  patchBillingByAppointment } = require("./cosmosClient");
+  patchBillingByAppointment, 
+  fetchClustersByAppointment} = require("./cosmosClient");
 const { StreamClient, StreamVideoClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -17,7 +18,7 @@ config();
 const PORT = process.env.PORT || 8080;
 
 const app = express();
-// const allowedOrigin = process.env.CORS_ORIGIN_BASE_URL || "https://victorious-mushroom-08b7e7d0f.4.azurestaticapps.net"; // set this in .env
+// const allowedOrigin = process.env.CORS_ORIGIN_BASE_URL || "https://victorious-mushroom-08b7e7d0f.4.azurestaticapps.net"; // set this in.env
 const allowedOrigin = "*"; // set this in .env
 app.use(express.json());
 app.use(cors({
@@ -95,7 +96,24 @@ app.patch("/api/billing/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: "Failed to send message to queue" })
   }
-})
+});
+
+app.get("/api/clusters/:id", async (req, res) => {
+  const { id } = req.params;
+  const partitionKey = req.query.username;
+
+  if (!partitionKey) {
+    return res.status(400).json({ error: "partitionKey query param is required" });
+  }
+
+  try {
+    const item = await fetchClustersByAppointment(id, partitionKey);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+});
 
 app.get("/api/summary/:id", async (req, res) => {
   const { id } = req.params;
@@ -201,7 +219,7 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
     res.status(500).json({ error: "Failed to send message to queue" })
   }
 
-})
+});
 
 app.post("/webhook", async (req, res) => {
   const { type } = req.body;
@@ -238,7 +256,7 @@ app.post("/webhook", async (req, res) => {
   }
 
   // res.sendStatus(204); // ignored
-})
+});
 
 httpServer.listen(PORT, () =>
   console.log(`server is running on port: ${PORT}`)

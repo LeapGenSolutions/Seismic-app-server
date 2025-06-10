@@ -93,6 +93,19 @@ async function fetchSummaryByAppointment(id, partitionKey) {
 
 }
 
+async function fetchClustersByAppointment(id, partitionKey) {
+    const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
+    const container = database.container("Clusters_Container");
+
+    try {
+        const { resource } = await container.item(id, partitionKey).read()
+        return resource
+    } catch (error) {
+        throw new Error("Item not found")
+    }
+
+}
+
 async function fetchTranscriptByAppointment(id, partitionKey) {
     const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
     const container = database.container("Transcription_Container");
@@ -127,5 +140,6 @@ module.exports = {
     fetchSummaryByAppointment,
     fetchTranscriptByAppointment,
     fetchReccomendationByAppointment,
-    patchBillingByAppointment
+    patchBillingByAppointment,
+    fetchClustersByAppointment
 };

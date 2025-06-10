@@ -2,7 +2,7 @@ const express = require("express");
 const http = require("http");
 const { config } = require("dotenv");
 const cors = require("cors");
-const { fetchAllAppointments, fetchAllPatients,
+const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment,
   fetchReccomendationByAppointment,
@@ -32,9 +32,10 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-app.get("/api/appointments", async (req, res) => {
+app.get("/api/appointments/:email", async (req, res) => {
   try {
-    const items = await fetchAllAppointments();
+    const { email } = req.params
+    const items = await fetchAppointmentsByEmail(email);
     res.json(items);
   } catch (err) {
     // console.error("Error fetching items:", err);

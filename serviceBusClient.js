@@ -4,9 +4,10 @@ import { ServiceBusClient } from "@azure/service-bus";
 const connectionString = process.env.SERVICE_BUS_CONNECTION_STRING
 const queueName = process.env.SERVICE_BUS_QUEUE;
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const sendMessage = async (userId, sessionID) => {
     console.log(`${userId} :: ${sessionID} :: Inside sendMessage started`);
-    
     const sbClient = new ServiceBusClient(connectionString);
     console.log(`${userId} :: ${sessionID} :: sbCLientCreated`);
     const sender = sbClient.createSender(queueName);
@@ -23,6 +24,8 @@ export const sendMessage = async (userId, sessionID) => {
         
     };
     try {
+        console.log(`${userId} :: ${sessionID} :: delaying for 15s`);
+        await delay(15000); // 15 seconds
         console.log(`${userId} :: ${sessionID} :: sender message sending`);
         await sender.sendMessages(message);
         console.log(`${userId} :: ${sessionID} :: sender message sent`);

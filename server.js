@@ -167,11 +167,10 @@ app.get("/api/recommendations/:id", async (req, res) => {
 });
 
 app.post("/get-token", async (req, res) => {
-  console.log(req.body);
 
   const { userId } = req.body;
   const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
-
+  
   if (!userId) {
     return res.status(400).json({ error: "Missing userId" });
   }
@@ -220,6 +219,27 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
   }
 
 });
+
+
+app.get("/api/call-history/:userID",async (req,res)=>{
+  const { userID } = req.params
+  const {limit : fetchHistoryLimit} = req.query  
+  const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
+  
+  const data = await client.video.queryCalls({
+    filter_conditions:{
+      created_by_user_id:userID
+    },
+    limit: Number(fetchHistoryLimit) || 10
+  })
+  const call = await client.video.getCall({
+    id:data.calls[0].call.id,
+    type:"default"
+  })
+  console.log(call);
+  
+  return res.status(200).json(data)
+})
 
 app.post("/webhook", async (req, res) => {
   const { type } = req.body;

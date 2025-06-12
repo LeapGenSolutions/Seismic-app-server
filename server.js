@@ -6,8 +6,9 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment,
   fetchReccomendationByAppointment,
-  patchBillingByAppointment, 
-  fetchClustersByAppointment} = require("./cosmosClient");
+  patchBillingByAppointment,
+  fetchClustersByAppointment,
+  insertCallHistory } = require("./cosmosClient");
 const { StreamClient, StreamVideoClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -170,7 +171,7 @@ app.post("/get-token", async (req, res) => {
 
   const { userId } = req.body;
   const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
-  
+
   if (!userId) {
     return res.status(400).json({ error: "Missing userId" });
   }
@@ -221,24 +222,40 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
 });
 
 
-app.get("/api/call-history/:userID",async (req,res)=>{
+app.get("/api/call-history/:userID", async (req, res) => {
   const { userID } = req.params
-  const {limit : fetchHistoryLimit} = req.query  
+  const { limit: fetchHistoryLimit } = req.query
   const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
-  
+
   const data = await client.video.queryCalls({
-    filter_conditions:{
-      created_by_user_id:userID
+    filter_conditions: {
+      created_by_user_id: userID
     },
     limit: Number(fetchHistoryLimit) || 10
   })
   const call = await client.video.getCall({
-    id:data.calls[0].call.id,
-    type:"default"
+    id: data.calls[0].call.id,
+    type: "default"
   })
   console.log(call);
-  
+
   return res.status(200).json(data)
+})
+
+app.post("/api/call-history/:id", async (req, res) => {
+  const { id } = req.params
+  const reqBody = req.body
+  let errorMsg = ""
+  try {
+    if (!reqBody.userID) {
+      errorMsg= "UserID is mandatory"
+    }
+    await insertCallHistory(id, reqBody)
+    res.status(200).json({ success: true })
+  } catch (error) {
+    res.status(500).json({ error: errorMsg || "Failed to Insert into DB" })
+  }
+
 })
 
 app.post("/webhook", async (req, res) => {

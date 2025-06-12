@@ -137,13 +137,29 @@ async function insertCallHistory(id, reqBody) {
     const container = database.container("seismic_call_history");
 
     try {
-        const { resource } = await container.items.create({
+        const { resource } = await container.items.upsert({
             id,
             ...reqBody
         })
         return resource
     } catch (error) {
         throw new Error("Item not Inserted")
+    }
+}
+
+async function fetchEmailFromCallHistory(id) {
+    const database = client.database("seismic-backend-athena");
+    const container = database.container("seismic_call_history");
+
+    try {
+        const querySpec = {
+            query: `SELECT * from c where c.id="${id}"`
+        };
+
+        const { resources: items } = await container.items.query(querySpec).fetchAll();
+        return items[0].userID
+    } catch (error) {
+        throw new Error("Item not found")
     }
 }
 
@@ -157,5 +173,6 @@ module.exports = {
     fetchReccomendationByAppointment,
     patchBillingByAppointment,
     fetchClustersByAppointment,
-    insertCallHistory
+    insertCallHistory,
+    fetchEmailFromCallHistory
 };

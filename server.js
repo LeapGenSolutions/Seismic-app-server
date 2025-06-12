@@ -8,7 +8,8 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchReccomendationByAppointment,
   patchBillingByAppointment,
   fetchClustersByAppointment,
-  insertCallHistory } = require("./cosmosClient");
+  insertCallHistory, 
+  fetchEmailFromCallHistory} = require("./cosmosClient");
 const { StreamClient, StreamVideoClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -245,7 +246,7 @@ app.get("/api/call-history/:userID", async (req, res) => {
 app.post("/api/call-history/:id", async (req, res) => {
   const { id } = req.params
   const reqBody = req.body
-  let errorMsg = ""
+  let errorMsg = ""  
   try {
     if (!reqBody.userID) {
       errorMsg= "UserID is mandatory"
@@ -269,14 +270,15 @@ app.post("/webhook", async (req, res) => {
       const response = await axios.get(videoUrl, { responseType: 'arraybuffer' });
       const buffer = Buffer.from(response.data);
       const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
+      const apptID = call_cid.split(":")[1]
       const call = await client.video.getCall({
-        id: call_cid.split(":")[1],
+        id: apptID,
         type: "default"
       })
-      const username = call.call.created_by.name
+      const username = await fetchEmailFromCallHistory(apptID)
       const meetingChunks = filename.split("_")
       const meetingChunkName = meetingChunks[meetingChunks.length - 1]
-      const blobName = `${username}/${call_cid.split(":")[1]}/meeting_part${meetingChunkName}`;
+      const blobName = `${username}/${apptID}/meeting_part${meetingChunkName}`;
       console.log(call.call.created_by.name);
       const blobClient = storageContainerClient.getBlockBlobClient(blobName);
       await blobClient.uploadData(buffer, {

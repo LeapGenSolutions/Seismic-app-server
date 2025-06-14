@@ -8,8 +8,8 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchReccomendationByAppointment,
   patchBillingByAppointment,
   fetchClustersByAppointment,
-  insertCallHistory, 
-  fetchEmailFromCallHistory} = require("./cosmosClient");
+  insertCallHistory,
+  fetchEmailFromCallHistory } = require("./cosmosClient");
 const { StreamClient, StreamVideoClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -246,10 +246,10 @@ app.get("/api/call-history/:userID", async (req, res) => {
 app.post("/api/call-history/:id", async (req, res) => {
   const { id } = req.params
   const reqBody = req.body
-  let errorMsg = ""  
+  let errorMsg = ""
   try {
     if (!reqBody.userID) {
-      errorMsg= "UserID is mandatory"
+      errorMsg = "UserID is mandatory"
     }
     await insertCallHistory(id, reqBody)
     res.status(200).json({ success: true })
@@ -274,7 +274,7 @@ app.post("/webhook", async (req, res) => {
       const call = await client.video.getCall({
         id: apptID,
         type: "default"
-      })
+      })   
       const username = await fetchEmailFromCallHistory(apptID)
       const meetingChunks = filename.split("_")
       const meetingChunkName = meetingChunks[meetingChunks.length - 1]
@@ -292,6 +292,35 @@ app.post("/webhook", async (req, res) => {
       return res.status(500).json({ "message": "Uploaded the blob failed" });
 
     }
+  }
+  if (type === "call.session_ended") {
+    console.log(`Call Session ended`);
+    console.log(req.body);
+    const { call_cid } = req.body
+    const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
+    const apptID = call_cid.split(":")[1]
+    const call = await client.video.getCall({
+        id: apptID,
+        type: "default"
+    })
+    console.log(call.members.length);      
+    if(call.members.length==0){
+      client.video.endCall({
+        id: apptID,
+        type: "default"
+      })
+    }
+    return res.status(200).json({ "success": "Call Session ended" });
+  }
+  if (type === "call.session_participant_left") {
+    console.log(`Call Session participant left`);
+    console.log(req.body);
+    return res.status(200).json({ "success": "Call session participant left" });
+  }
+  if (type === "call.ended") {
+    console.log(`Call Ended`);
+    console.log(req.body);
+    return res.status(200).json({ "success": "Call ended" });
   }
 
   // res.sendStatus(204); // ignored

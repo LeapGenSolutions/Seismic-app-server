@@ -9,8 +9,9 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   patchBillingByAppointment,
   fetchClustersByAppointment,
   insertCallHistory,
-  fetchEmailFromCallHistory } = require("./cosmosClient");
-const { StreamClient, StreamVideoClient } = require("@stream-io/node-sdk");
+  fetchEmailFromCallHistory,
+  updateCallHistory } = require("./cosmosClient");
+const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
 const { default: axios } = require("axios");
@@ -172,7 +173,6 @@ app.post("/get-token", async (req, res) => {
 
   const { userId } = req.body;
   const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
-
   if (!userId) {
     return res.status(400).json({ error: "Missing userId" });
   }
@@ -274,7 +274,7 @@ app.post("/webhook", async (req, res) => {
       const call = await client.video.getCall({
         id: apptID,
         type: "default"
-      })   
+      })
       const username = await fetchEmailFromCallHistory(apptID)
       const meetingChunks = filename.split("_")
       const meetingChunkName = meetingChunks[meetingChunks.length - 1]
@@ -296,15 +296,18 @@ app.post("/webhook", async (req, res) => {
   if (type === "call.session_ended") {
     console.log(`Call Session ended`);
     console.log(req.body);
-    const { call_cid } = req.body
+    const { call_cid, session_id, created_at } = req.body
     const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
     const apptID = call_cid.split(":")[1]
     const call = await client.video.getCall({
-        id: apptID,
-        type: "default"
+      id: apptID,
+      type: "default"
     })
-    console.log(call.members.length);      
-    if(call.members.length==0){
+    updateCallHistory(session_id, {
+      endTime: created_at,
+    })
+    
+    if (call.members.length == 0) {
       client.video.endCall({
         id: apptID,
         type: "default"

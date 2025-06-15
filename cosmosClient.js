@@ -147,6 +147,24 @@ async function insertCallHistory(id, reqBody) {
     }
 }
 
+async function updateCallHistory(id, updatedBody) {
+    const database = client.database("seismic-backend-athena");
+    const container = database.container("seismic_call_history");
+
+    try {
+        const querySpec = {
+            query: `SELECT * from c where c.id="${id}"`
+        };
+        const { resources: items } = await container.items.query(querySpec).fetchAll();
+        const existingItem = items[0]
+        const updatedItem = { ...existingItem, ...updatedBody };
+        const { resource: replacedItem } = await container.item(id, existingItem.userID).replace(updatedItem);
+        return replacedItem
+    } catch (error) {
+        throw new Error("Item not updated")
+    }
+}
+
 async function fetchEmailFromCallHistory(id) {
     const database = client.database("seismic-backend-athena");
     const container = database.container("seismic_call_history");
@@ -174,5 +192,6 @@ module.exports = {
     patchBillingByAppointment,
     fetchClustersByAppointment,
     insertCallHistory,
-    fetchEmailFromCallHistory
+    fetchEmailFromCallHistory,
+    updateCallHistory
 };

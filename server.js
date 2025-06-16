@@ -2,7 +2,8 @@ const express = require("express");
 const http = require("http");
 const { config } = require("dotenv");
 const cors = require("cors");
-const { fetchAppointmentsByEmail, fetchAllPatients,
+const {
+  fetchAppointmentsByEmail, fetchAllPatients,
   fetchSOAPByAppointment, fetchBillingByAppointment,
   fetchSummaryByAppointment, fetchTranscriptByAppointment,
   fetchReccomendationByAppointment,
@@ -10,8 +11,10 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchClustersByAppointment,
   insertCallHistory,
   fetchEmailFromCallHistory,
-  updateCallHistory, 
-  fetchCallHistoryFromEmail} = require("./cosmosClient");
+  updateCallHistory,
+  fetchCallHistoryFromEmail,
+  fetchDoctorsFromCallHistory
+} = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -223,6 +226,15 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
 
 });
 
+app.get("/api/doctors/call-history", async (req, res) => {
+  try {
+    const item = await fetchDoctorsFromCallHistory();
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
+})
 
 app.get("/api/call-history/:userID", async (req, res) => {
   const { userID } = req.params
@@ -298,7 +310,7 @@ app.post("/webhook", async (req, res) => {
     updateCallHistory(session_id, {
       endTime: created_at,
     })
-    
+
     if (call.members.length == 0) {
       client.video.endCall({
         id: apptID,

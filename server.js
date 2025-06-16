@@ -10,7 +10,8 @@ const { fetchAppointmentsByEmail, fetchAllPatients,
   fetchClustersByAppointment,
   insertCallHistory,
   fetchEmailFromCallHistory,
-  updateCallHistory } = require("./cosmosClient");
+  updateCallHistory, 
+  fetchCallHistoryFromEmail} = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -225,22 +226,13 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
 
 app.get("/api/call-history/:userID", async (req, res) => {
   const { userID } = req.params
-  const { limit: fetchHistoryLimit } = req.query
-  const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
-
-  const data = await client.video.queryCalls({
-    filter_conditions: {
-      created_by_user_id: userID
-    },
-    limit: Number(fetchHistoryLimit) || 10
-  })
-  const call = await client.video.getCall({
-    id: data.calls[0].call.id,
-    type: "default"
-  })
-  console.log(call);
-
-  return res.status(200).json(data)
+  try {
+    const item = await fetchCallHistoryFromEmail(userID);
+    res.json(item);
+  } catch (err) {
+    console.error("Error fetching item:", err);
+    res.status(404).json({ error: "Item not found" });
+  }
 })
 
 app.post("/api/call-history/:id", async (req, res) => {

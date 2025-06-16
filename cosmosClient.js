@@ -181,6 +181,22 @@ async function fetchEmailFromCallHistory(id) {
     }
 }
 
+async function fetchCallHistoryFromEmail(userID) {
+    const database = client.database("seismic-backend-athena");
+    const container = database.container("seismic_call_history");
+
+    try {
+        const querySpec = {
+            query: `SELECT TOP 10 * from c where c.userID="${userID}"`
+        };
+
+        const { resources: items } = await container.items.query(querySpec).fetchAll();
+        return items
+    } catch (error) {
+        throw new Error("Item not found")
+    }
+}
+
 module.exports = {
     fetchAppointmentsByEmail,
     fetchAllPatients,
@@ -193,5 +209,6 @@ module.exports = {
     fetchClustersByAppointment,
     insertCallHistory,
     fetchEmailFromCallHistory,
-    updateCallHistory
+    updateCallHistory,
+    fetchCallHistoryFromEmail
 };

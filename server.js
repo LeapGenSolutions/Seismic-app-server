@@ -13,7 +13,8 @@ const {
   fetchEmailFromCallHistory,
   updateCallHistory,
   fetchCallHistoryFromEmail,
-  fetchDoctorsFromCallHistory
+  fetchDoctorsFromCallHistory,
+  patchSoapNotesByAppointment
 } = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
@@ -262,6 +263,26 @@ app.post("/api/call-history/:id", async (req, res) => {
   }
 
 })
+
+app.patch("/api/soap-notes/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const partitionKey = req.query.username;
+    const updatedSoapNotes = req.body.soap_notes;
+
+    if (!partitionKey) {
+      return res.status(400).json({ error: "partitionKey query param is required" });
+    }
+    if (!updatedSoapNotes) {
+      return res.status(400).json({ error: "soap_notes in body is required" });
+    }
+
+    await patchSoapNotesByAppointment(id, partitionKey, updatedSoapNotes);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update SOAP notes" });
+  }
+});
 
 app.post("/webhook", async (req, res) => {
   const { type } = req.body;

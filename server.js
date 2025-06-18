@@ -2,25 +2,25 @@ const express = require("express");
 const http = require("http");
 const { config } = require("dotenv");
 const cors = require("cors");
-const {
-  fetchAppointmentsByEmail, fetchAllPatients,
-  fetchSOAPByAppointment, fetchBillingByAppointment,
-  fetchSummaryByAppointment, fetchTranscriptByAppointment,
-  fetchReccomendationByAppointment,
-  patchBillingByAppointment,
-  fetchClustersByAppointment,
+const {  
   insertCallHistory,
   fetchEmailFromCallHistory,
-  updateCallHistory,
-  fetchCallHistoryFromEmail,
-  fetchDoctorsFromCallHistory,
-  patchSoapNotesByAppointment,
-  fetchSummaryOfSummaries
+  updateCallHistory
 } = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
 const { default: axios } = require("axios");
+const appointmentsRouter = require("./routes/appointments");
+const patientsRouter = require("./routes/patients");
+const soapRouter = require("./routes/soap");
+const billingRouter = require("./routes/billing");
+const summaryRouter = require("./routes/summary");
+const summaryOfSummaryRouter = require("./routes/summaryOfSummary");
+const transcriptRouter = require("./routes/transcript");
+const recommendationRouter = require("./routes/recommendation");
+const clustersRouter = require("./routes/clusters");
+const callHistoryRouter = require("./routes/callHistory");
 
 config();
 
@@ -42,138 +42,16 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-app.get("/api/appointments/:email", async (req, res) => {
-  try {
-    const { email } = req.params
-    const items = await fetchAppointmentsByEmail(email);
-    res.json(items);
-  } catch (err) {
-    // console.error("Error fetching items:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-app.get("/api/patients", async (req, res) => {
-  try {
-    const items = await fetchAllPatients();
-    res.json(items);
-  } catch (err) {
-    // console.error("Error fetching items:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-app.get("/api/soap/:id", async (req, res) => {
-  const { id } = req.params;
-  const partitionKey = req.query.userID;
-
-  if (!partitionKey) {
-    return res.status(400).json({ error: "partitionKey query param is required" });
-  }
-
-  try {
-    const item = await fetchSOAPByAppointment(id, partitionKey);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-});
-
-app.get("/api/billing/:id", async (req, res) => {
-  const { id } = req.params;
-  const partitionKey = req.query.userID;
-
-  if (!partitionKey) {
-    return res.status(400).json({ error: "partitionKey query param is required" });
-  }
-
-  try {
-    const item = await fetchBillingByAppointment(id, partitionKey);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-});
-
-app.patch("/api/billing/:id", async (req, res) => {
-  try {
-    const { id } = req.params
-    await patchBillingByAppointment(id, req.query.username, req.body.billing_codes)
-    res.status(200).json({ success: true })
-  } catch (error) {
-    res.status(500).json({ error: "Failed to send message to queue" })
-  }
-});
-
-app.get("/api/clusters/:id", async (req, res) => {
-  const { id } = req.params;
-  const partitionKey = req.query.username;
-
-  if (!partitionKey) {
-    return res.status(400).json({ error: "partitionKey query param is required" });
-  }
-
-  try {
-    const item = await fetchClustersByAppointment(id, partitionKey);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-});
-
-app.get("/api/summary/:id", async (req, res) => {
-  const { id } = req.params;
-  const partitionKey = req.query.userID;
-
-  if (!partitionKey) {
-    return res.status(400).json({ error: "partitionKey query param is required" });
-  }
-
-  try {
-    const item = await fetchSummaryByAppointment(id, partitionKey);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-});
-
-app.get("/api/transcript/:id", async (req, res) => {
-  const { id } = req.params;
-  const partitionKey = req.query.userID;
-
-  if (!partitionKey) {
-    return res.status(400).json({ error: "partitionKey query param is required" });
-  }
-
-  try {
-    const item = await fetchTranscriptByAppointment(id, partitionKey);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-});
-
-app.get("/api/recommendations/:id", async (req, res) => {
-  const { id } = req.params;
-  const partitionKey = req.query.userID;
-
-  if (!partitionKey) {
-    return res.status(400).json({ error: "partitionKey query param is required" });
-  }
-
-  try {
-    const item = await fetchReccomendationByAppointment(id, partitionKey);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-});
+app.use("/api/appointments", appointmentsRouter);
+app.use("/api/patients", patientsRouter);
+app.use("/api/soap-notes", soapRouter);
+app.use("/api/billing", billingRouter);
+app.use("/api/summary-of-summary", summaryOfSummaryRouter);
+app.use("/api/summary", summaryRouter);
+app.use("/api/transcript", transcriptRouter);
+app.use("/api/recommendations", recommendationRouter);
+app.use("/api/clusters", clustersRouter);
+app.use("/api/call-history", callHistoryRouter);
 
 app.post("/get-token", async (req, res) => {
 
@@ -226,74 +104,6 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
     res.status(500).json({ error: "Failed to send message to queue" })
   }
 
-});
-
-app.get("/api/doctors/call-history", async (req, res) => {
-  try {
-    const item = await fetchDoctorsFromCallHistory();
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-})
-
-app.get("/api/call-history/:userID", async (req, res) => {
-  const { userID } = req.params
-  try {
-    const item = await fetchCallHistoryFromEmail(userID);
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching item:", err);
-    res.status(404).json({ error: "Item not found" });
-  }
-})
-
-app.post("/api/call-history/:id", async (req, res) => {
-  const { id } = req.params
-  const reqBody = req.body
-  let errorMsg = ""
-  try {
-    if (!reqBody.userID) {
-      errorMsg = "UserID is mandatory"
-    }
-    await insertCallHistory(id, reqBody)
-    res.status(200).json({ success: true })
-  } catch (error) {
-    res.status(500).json({ error: errorMsg || "Failed to Insert into DB" })
-  }
-
-})
-
-app.patch("/api/soap-notes/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const partitionKey = req.query.username;
-    const updatedSoapNotes = req.body.soap_notes;
-
-    if (!partitionKey) {
-      return res.status(400).json({ error: "partitionKey query param is required" });
-    }
-    if (!updatedSoapNotes) {
-      return res.status(400).json({ error: "soap_notes in body is required" });
-    }
-
-    await patchSoapNotesByAppointment(id, partitionKey, updatedSoapNotes);
-    res.status(200).json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to update SOAP notes" });
-  }
-});
-
-app.get("/api/summary-of-summary/:patientID", async (req, res) => {
-  try {
-    const { patientID } = req.params;
-    const items = await fetchSummaryOfSummaries(patientID);
-    res.json(items);
-  } catch (err) {
-    console.error("Error fetching summary of summaries:", err);
-    res.status(500).json({ error: "Failed to fetch summary of summaries" });
-  }
 });
 
 app.post("/webhook", async (req, res) => {

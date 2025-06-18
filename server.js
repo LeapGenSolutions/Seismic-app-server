@@ -14,7 +14,8 @@ const {
   updateCallHistory,
   fetchCallHistoryFromEmail,
   fetchDoctorsFromCallHistory,
-  patchSoapNotesByAppointment
+  patchSoapNotesByAppointment,
+  fetchSummaryOfSummaries
 } = require("./cosmosClient");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
@@ -281,6 +282,17 @@ app.patch("/api/soap-notes/:id", async (req, res) => {
     res.status(200).json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to update SOAP notes" });
+  }
+});
+
+app.get("/api/summary-of-summary/:patientID", async (req, res) => {
+  try {
+    const { patientID } = req.params;
+    const items = await fetchSummaryOfSummaries(patientID);
+    res.json(items);
+  } catch (err) {
+    console.error("Error fetching summary of summaries:", err);
+    res.status(500).json({ error: "Failed to fetch summary of summaries" });
   }
 });
 

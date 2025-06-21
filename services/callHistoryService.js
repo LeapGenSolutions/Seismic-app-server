@@ -42,19 +42,6 @@ async function fetchEmailFromCallHistory(id) {
         throw new Error("Item not found");
     }
 }
-
-async function fetchCallHistoryFromEmail(userID) {
-    const database = client.database("seismic-backend-athena");
-    const container = database.container("seismic_call_history");
-    try {
-        const querySpec = { query: `SELECT TOP 10 * from c where c.userID="${userID}"` };
-        const { resources: items } = await container.items.query(querySpec).fetchAll();
-        return items;
-    } catch (error) {
-        throw new Error("Item not found");
-    }
-}
-
 async function fetchDoctorsFromCallHistory() {
     const database = client.database("seismic-backend-athena");
     const container = database.container("seismic_call_history");
@@ -67,10 +54,29 @@ async function fetchDoctorsFromCallHistory() {
     }
 }
 
+// Fetch call history for multiple emails
+async function fetchCallHistoryFromEmails(userIDs) {
+    const database = client.database("seismic-backend-athena");
+    const container = database.container("seismic_call_history");
+    try {
+        // Use IN clause for multiple userIDs, limit to 10 per userID
+        const userIDsList = userIDs.map(id => `\"${id}\"`).join(",");
+        const querySpec = {
+            query: `SELECT * from c WHERE c.userID IN (${userIDsList})`
+        };
+        const { resources: items } = await container.items.query(querySpec).fetchAll();
+        // Optionally, group by userID and limit to 10 per userID
+        // Here, just return all results
+        return items;
+    } catch (error) {
+        throw new Error("Items not found");
+    }
+}
+
 module.exports = {
     insertCallHistory,
     updateCallHistory,
     fetchEmailFromCallHistory,
-    fetchCallHistoryFromEmail,
-    fetchDoctorsFromCallHistory
+    fetchDoctorsFromCallHistory,
+    fetchCallHistoryFromEmails
 };

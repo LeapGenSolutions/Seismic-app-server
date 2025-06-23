@@ -35,7 +35,7 @@ async function fetchEmailFromCallHistory(id) {
     const database = client.database("seismic-backend-athena");
     const container = database.container("seismic_call_history");
     try {
-        const querySpec = { query: `SELECT * from c where c.id="${id}"` };
+        const querySpec = { query: `SELECT * from c where c.appointmentID="${id}"` };
         const { resources: items } = await container.items.query(querySpec).fetchAll();
         return items[0].userID;
     } catch (error) {

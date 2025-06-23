@@ -2,11 +2,10 @@ const express = require("express");
 const http = require("http");
 const { config } = require("dotenv");
 const cors = require("cors");
-const {  
-  insertCallHistory,
+const {
   fetchEmailFromCallHistory,
   updateCallHistory
-} = require("./cosmosClient");
+} = require("./services/callHistoryService");
 const { StreamClient } = require("@stream-io/node-sdk");
 const { storageContainerClient, upload } = require("./blobClient");
 const { sendMessage } = require("./serviceBusClient");
@@ -109,24 +108,20 @@ app.post("/api/end-call/:appointmentId", async (req, res) => {
 app.post("/webhook", async (req, res) => {
   const { type } = req.body;
   if (type === 'call.recording_ready') {
-    console.log(req.body);
     const { call_cid } = req.body
     const { url: videoUrl, filename } = req.body.call_recording;
 
     try {
       const response = await axios.get(videoUrl, { responseType: 'arraybuffer' });
       const buffer = Buffer.from(response.data);
-      const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
       const apptID = call_cid.split(":")[1]
-      const call = await client.video.getCall({
-        id: apptID,
-        type: "default"
-      })
+      console.log("call.recording_ready :: Fetched Appointment ID from call history :: " + apptID);
       const username = await fetchEmailFromCallHistory(apptID)
+      console.log("call.recording_ready :: Fetched username from call history :: " + username);
       const meetingChunks = filename.split("_")
       const meetingChunkName = meetingChunks[meetingChunks.length - 1]
+      console.log("call.recording_ready :: Meeting chunkname :: " + meetingChunkName);
       const blobName = `${username}/${apptID}/meeting_part${meetingChunkName}`;
-      console.log(call.call.created_by.name);
       const blobClient = storageContainerClient.getBlockBlobClient(blobName);
       await blobClient.uploadData(buffer, {
         blobHTTPHeaders: {
@@ -142,10 +137,9 @@ app.post("/webhook", async (req, res) => {
   }
   if (type === "call.session_ended") {
     console.log(`Call Session ended`);
-    console.log(req.body);
     const { call_cid, session_id, created_at } = req.body
-    const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
     const apptID = call_cid.split(":")[1]
+    const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
     const call = await client.video.getCall({
       id: apptID,
       type: "default"
@@ -165,10 +159,28 @@ app.post("/webhook", async (req, res) => {
   if (type === "call.session_participant_left") {
     console.log(`Call Session participant left`);
     console.log(req.body);
+    const { call_cid, created_at, session_id } = req.body
+    const apptID = call_cid.split(":")[1]
+    const userID = await fetchEmailFromCallHistory(apptID)
+    console.log("call.session_participant_left :: Particpant details as below");
+    const participant = req.body.participant;
+    console.log(participant);
+    if (participant.user.name === userID) {
+      const client = new StreamClient(process.env.STREAM_IO_APIKEY, process.env.STREAM_IO_SECRET);
+      updateCallHistory(session_id, {
+        endTime: created_at,
+      })
+
+      client.video.endCall({
+        id: apptID,
+        type: "default"
+      })
+    }
+
     return res.status(200).json({ "success": "Call session participant left" });
   }
   if (type === "call.ended") {
-    console.log(`Call Ended`);
+    console.log(`call.ended :: Appointment ID :: ${req.body.call_cid}`);
     console.log(req.body);
     return res.status(200).json({ "success": "Call ended" });
   }

@@ -20,6 +20,7 @@ const transcriptRouter = require("./routes/transcript");
 const recommendationRouter = require("./routes/recommendation");
 const clustersRouter = require("./routes/clusters");
 const callHistoryRouter = require("./routes/callHistory");
+const doctorNotesRouter = require("./routes/doctorNotes");
 
 config();
 
@@ -51,6 +52,7 @@ app.use("/api/transcript", transcriptRouter);
 app.use("/api/recommendations", recommendationRouter);
 app.use("/api/clusters", clustersRouter);
 app.use("/api/call-history", callHistoryRouter);
+app.use("/api/doctor-notes", doctorNotesRouter);
 
 app.post("/get-token", async (req, res) => {
 

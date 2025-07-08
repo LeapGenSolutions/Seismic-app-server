@@ -3,8 +3,27 @@ const router = express.Router();
 const {
   insertCallHistory,
   fetchDoctorsFromCallHistory,
-  fetchCallHistoryFromEmails
+  fetchCallHistoryFromEmails,
+  checkAppointmentsInCallHistory
 } = require("../services/callHistoryService");
+// POST /api/call-history/checkAppointments
+router.post("/checkAppointments", async (req, res) => {
+  const { appointmentIDs } = req.body;
+  if (!Array.isArray(appointmentIDs) || appointmentIDs.length === 0) {
+    return res.status(400).json({ error: "appointmentIDs (array) is required in body" });
+  }
+  try {
+    const foundAppointments = await checkAppointmentsInCallHistory(appointmentIDs);
+    const foundIDs = foundAppointments.map(item => item.appointmentID);
+    const notFound = appointmentIDs.filter(id => !foundIDs.includes(id));
+    res.json({
+      found: foundIDs,
+      notFound
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to check appointments" });
+  }
+});
 
 router.get("/doctors", async (req, res) => {
   try {

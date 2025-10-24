@@ -1,5 +1,6 @@
 const { CosmosClient } = require("@azure/cosmos");
 require("dotenv").config();
+const { v4: uuidv4 } = require("uuid");
 
 const endpoint = process.env.COSMOS_ENDPOINT;
 const key = process.env.COSMOS_KEY;
@@ -75,4 +76,33 @@ async function fetchAppointmentsByEmails(emails) {
     return items;
 }
 
-module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails };
+async function createCustomAppointment(userId, data) {
+    const database = client.database(databaseId);
+    const container = database.container("custom_appointment");
+    const newAppointment = {
+        id : `${userId}-${uuidv4()}-${Date.now()}`,
+        user_id : userId,
+        clinic_name : data.clinic_name,
+        clinic_code : data.clinic_code,
+        first_name : data.first_name,
+        last_name : data.last_name,
+        full_name : data.full_name,
+        doctor_name : data.doctor_name,
+        doctor_email : data.doctor_email,
+        specialization : data.specialization,
+        status : data.status || 'scheduled',
+        email : data.email,
+        time : data.time,
+        appointment_date : data.appointment_date,
+        created_at : new Date().toISOString()
+    }
+    try {
+        const { resource: createdItem } = await container.items.create(newAppointment);
+        return createdItem;
+    } catch (error) {
+        console.error("Error creating custom appointment:", error);
+        throw error;
+    }
+}
+
+module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createCustomAppointment };

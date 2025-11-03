@@ -1,16 +1,24 @@
 const { CosmosClient } = require("@azure/cosmos");
 require("dotenv").config();
-const { v4: uuidv4 } = require("uuid");
 
 const endpoint = process.env.COSMOS_ENDPOINT;
 const key = process.env.COSMOS_KEY;
 const databaseId = process.env.COSMOS_DATABASE;
 const client = new CosmosClient({ endpoint, key });
 
+function generateId(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '';
+  for (let i = 0; i < length; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
+
 async function fetchAppointmentsByEmail(email) {
     const database = client.database(databaseId);
     const seismic_appointments_container = database.container("seismic_appointments");
-    const custom_appointment_container = database.container("custom_appointment");
     const doctorEmail = (email || '').toLowerCase();
 
     const seismicQuery = {
@@ -21,6 +29,8 @@ async function fetchAppointmentsByEmail(email) {
                     d.first_name,
                     d.last_name,
                     d.full_name,
+                    d.clinic_name,
+                    d.clinic_code,
                     d.dob,
                     d.gender,
                     d.mrn,
@@ -44,44 +54,8 @@ async function fetchAppointmentsByEmail(email) {
         parameters: [{ name: "@doctorEmail", value: doctorEmail }]
     };
 
-    const customQuery = {
-        query: `SELECT 
-                    c.appointment_date AS appointment_date,
-                    c.id,
-                    c.type,
-                    c.first_name,
-                    c.last_name,
-                    c.full_name,
-                    c.dob,
-                    c.gender,
-                    c.mrn,
-                    c.ehr,
-                    c.ssn,
-                    c.doctor_name,
-                    c.doctor_id,
-                    lower(c.doctor_email) as doctor_email,
-                    c.specialization,
-                    c.time,
-                    c.status,
-                    c.insurance_provider,
-                    c.email,
-                    c.phone,
-                    c.insurance_verified,
-                    c.patient_id,
-                    c.practice_id
-                FROM c
-                WHERE lower(c.doctor_email) = @doctorEmail`,
-        parameters: [{ name: "@doctorEmail", value: doctorEmail }]
-    };
+    const { resources: items } = await seismic_appointments_container.items.query(seismicQuery).fetchAll();
 
-    const { resources: seismicItems } = await seismic_appointments_container.items.query(seismicQuery).fetchAll();
-    const { resources: customItems } = await custom_appointment_container.items.query(customQuery).fetchAll();
-
-    const items = [];
-    if (Array.isArray(seismicItems)) items.push(...seismicItems);
-    if (Array.isArray(customItems)) items.push(...customItems);
-
-    console.log(`custom items: ${JSON.stringify(customItems)}`);
     return items;
 }
 
@@ -89,8 +63,6 @@ async function fetchAppointmentsByEmails(emails) {
     if (!Array.isArray(emails) || emails.length === 0) return [];
     const database = client.database(databaseId);
     const seismic_appointments_container = database.container("seismic_appointments");
-    const custom_appointment_container = database.container("custom_appointment");
-    // Prepare parameters and IN clause
     try{
         const lowerEmails = emails.map(e => (e || '').toLowerCase());
         const emailParams = lowerEmails.map((_, idx) => `@email${idx}`);
@@ -103,6 +75,8 @@ async function fetchAppointmentsByEmails(emails) {
                         d.first_name,
                         d.last_name,
                         d.full_name,
+                        d.clinic_name,
+                        d.clinic_code,
                         d.dob,
                         d.gender,
                         d.mrn,
@@ -126,42 +100,8 @@ async function fetchAppointmentsByEmails(emails) {
             parameters: lowerEmails.map((email, idx) => ({ name: `@email${idx}`, value: email }))
         };
 
-        const customQuery = {
-            query: `SELECT
-                        c.appointment_date AS appointment_date,
-                        c.id,
-                        c.type,
-                        c.first_name,
-                        c.last_name,
-                        c.full_name,
-                        c.dob,
-                        c.gender,
-                        c.mrn,
-                        c.ehr,
-                        c.ssn,
-                        c.doctor_name,
-                        c.doctor_id,
-                        lower(c.doctor_email) as doctor_email,
-                        c.specialization,
-                        c.time,
-                        c.status,
-                        c.insurance_provider,
-                        c.email,
-                        c.phone,
-                        c.insurance_verified,
-                        c.patient_id,
-                        c.practice_id
-                    FROM c
-                    WHERE lower(c.doctor_email) IN (${emailParams.join(", ")})`,
-            parameters: lowerEmails.map((email, idx) => ({ name: `@email${idx}`, value: email }))
-        };
+        const { resources: items } = await seismic_appointments_container.items.query(seismicQuery).fetchAll();
 
-        const { resources: seismicItems } = await seismic_appointments_container.items.query(seismicQuery).fetchAll();
-        const { resources: customItems } = await custom_appointment_container.items.query(customQuery).fetchAll();
-
-        const items = [];
-        if (Array.isArray(seismicItems)) items.push(...seismicItems);
-        if (Array.isArray(customItems)) items.push(...customItems);
         return items;
     }catch (error) {
         console.error("Error fetching appointments by emails:", error);
@@ -169,12 +109,14 @@ async function fetchAppointmentsByEmails(emails) {
     }
 }
 
-async function createCustomAppointment(userId, data) {
+async function createAppointment(userId, data) {
     const database = client.database(databaseId);
-    const container = database.container("custom_appointment");
+    const container = database.container("seismic_appointments");
     const normalizedDoctorEmail = (data.doctor_email || '').toLowerCase();
+    const currentDate = new Date().toISOString().slice(0, 10);
+
     const newAppointment = {
-        id : `custom-appointment-${uuidv4()}-${Date.now()}`,
+        id : generateId(24),
         user_id : userId,
         clinic_name : data.clinic_name,
         clinic_code : data.clinic_code,
@@ -186,6 +128,8 @@ async function createCustomAppointment(userId, data) {
         gender : data.gender,
         mrn : data.mrn,
         ehr : data.ehr,
+        ssn : data.patient_id,
+        doctor_id : data.doctor_id,
         doctor_name : data.doctor_name,
         doctor_email : normalizedDoctorEmail,
         specialization : data.specialization,
@@ -193,11 +137,31 @@ async function createCustomAppointment(userId, data) {
         email : data.email,
         phone : data.phone,
         time : data.time,
+        patient_id : data.patient_id,
+        practice_id : data.practice_id,
         appointment_date : data.appointment_date,
         created_at : new Date().toISOString()
     }
     try {
-        const { resource: createdItem } = await container.items.create(newAppointment);
+        let existingAppointments = null;
+        try {
+            const query = {
+                query: `SELECT * FROM c WHERE c.id = @id`,
+                parameters: [{ name: "@id", value: currentDate }]
+            };
+            const { resources: results } = await container.items.query(query).fetchAll();
+            existingAppointments = results ? results[0].data : null;
+        } catch (qErr) {
+            console.error('Fallback query to read date document failed:', qErr);
+            existingAppointments = null;
+        }
+
+        const updatedData = existingAppointments && Array.isArray(existingAppointments)
+            ? [...existingAppointments, newAppointment]
+            : [newAppointment];
+
+        const { resource: createdItem } = await container.items.upsert({ id: currentDate, data: updatedData });
+
         return createdItem;
     } catch (error) {
         console.error("Error creating custom appointment:", error);
@@ -205,4 +169,4 @@ async function createCustomAppointment(userId, data) {
     }
 }
 
-module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createCustomAppointment };
+module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment };

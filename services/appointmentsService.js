@@ -118,12 +118,10 @@ async function createAppointment(userId, data) {
     const newAppointment = {
         id : generateId(24),
         user_id : userId,
-        clinic_name : data.clinic_name,
-        clinic_code : data.clinic_code,
+        type: "appointment",
         first_name : data.first_name,
         last_name : data.last_name,
         full_name : data.full_name,
-        type: "custom",
         dob: data.dob,
         gender : data.gender,
         mrn : data.mrn,
@@ -139,8 +137,9 @@ async function createAppointment(userId, data) {
         time : data.time,
         patient_id : data.patient_id,
         practice_id : data.practice_id,
-        appointment_date : data.appointment_date,
-        created_at : new Date().toISOString()
+        insurance_verified : data.insurance_verified || false,
+        insurance_provider : data.insurance_provider,
+        appointment_date : data.appointment_date
     }
     try {
         let existingAppointments = null;

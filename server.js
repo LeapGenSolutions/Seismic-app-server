@@ -21,6 +21,7 @@ const recommendationRouter = require("./routes/recommendation");
 const clustersRouter = require("./routes/clusters");
 const callHistoryRouter = require("./routes/callHistory");
 const doctorNotesRouter = require("./routes/doctorNotes");
+const emotionalConnectRouter = require("./routes/emotionalConnect");
 
 config();
 
@@ -53,6 +54,7 @@ app.use("/api/recommendations", recommendationRouter);
 app.use("/api/clusters", clustersRouter);
 app.use("/api/call-history", callHistoryRouter);
 app.use("/api/doctor-notes", doctorNotesRouter);
+app.use("/api/emotional-connect", emotionalConnectRouter);
 
 app.post("/get-token", async (req, res) => {
 

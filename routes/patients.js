@@ -1,10 +1,20 @@
 const express = require("express");
 const router = express.Router();
-const { fetchAllPatients, fetchPatientById, createPatient } = require("../services/patientsService");
+const { fetchAllPatients, fetchPatientById, createPatient, fetchAllPatientsSeismic, fetchPatientByIdSeismic } = require("../services/patientsService");
 
 router.get("/", async (req, res) => {
   try {
     const items = await fetchAllPatients();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Route for fetching all patients from Seismic backend
+router.get("/seismic", async (req, res) => {
+  try {
+    const items = await fetchAllPatientsSeismic();
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
@@ -16,6 +26,20 @@ router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const patient = await fetchPatientById(id);
+    if (!patient) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+    res.json(patient);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Route to get patient by ID from Seismic backend
+router.get("/seismic/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const patient = await fetchPatientByIdSeismic(id);
     if (!patient) {
       return res.status(404).json({ error: "Patient not found" });
     }

@@ -66,8 +66,39 @@ async function fetchPatientById(patient_id) {
     return result;
 }
 
+
+// These api's fetch data from the seismic backend.
+async function fetchAllPatientsSeismic() {
+    const database = client.database(process.env.COSMOS_DATABASE);
+    const container = database.container("patients");
+    try{
+        const querySpec = { query: "SELECT * from c" };
+        const { resources: items } = await container.items.query(querySpec).fetchAll();
+        return items;
+    } catch (error) {
+        console.error("Error fetching patients from Seismic:", error);
+        throw new Error("Failed to fetch patients from Seismic");
+    }
+}
+
+async function fetchPatientByIdSeismic(patient_id) {
+    const database = client.database(process.env.COSMOS_DATABASE);
+    const container = database.container("patients");
+    try{
+        const querySpec = {
+            query: "SELECT * from c where c.id = @id",
+            parameters: [{ name: "@id", value: patient_id }]
+        };
+        const { resources: items } = await container.items.query(querySpec).fetchAll();
+        return items[0];
+    } catch (error) {
+        console.error("Error fetching patient from Seismic:", error);
+        throw new Error("Failed to fetch patient from Seismic");
+    }
+}
+
 async function createPatient(data) {
-    const database = client.database(process.env.COSMOS_DATABASE || databaseId);
+    const database = client.database(process.env.COSMOS_DATABASE);
     const container = database.container("patients");
     try{
         const firstName = (data.first_name || '').toLowerCase().trim();
@@ -109,5 +140,7 @@ async function createPatient(data) {
 module.exports = {
     fetchAllPatients,
     fetchPatientById,
-    createPatient
+    createPatient,
+    fetchAllPatientsSeismic,
+    fetchPatientByIdSeismic
 };

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { fetchAllPatients, fetchPatientById } = require("../services/patientsService");
+const { fetchAllPatients, fetchPatientById, createPatient } = require("../services/patientsService");
 
 router.get("/", async (req, res) => {
   try {
@@ -20,6 +20,16 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
     res.json(patient);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/add", async (req, res) => {
+  try {
+    const data = req.body;
+    const newPatient = await createPatient(data);
+    res.status(201).json(newPatient);
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }

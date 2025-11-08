@@ -14,6 +14,29 @@ function generatePatientId(firstName, lastName, ssn) {
   return crypto.createHash('sha256').update(base, 'utf8').digest('hex');
 }
 
+// Function to generate a unique patient ID for chatbot patients
+async function generateUniquePatientId(container) {
+  const min = 1001;
+  const max = 4301;
+  let randomNum, id, { resources: existing } = { resources: [] };
+
+  do {
+    randomNum = Math.floor(Math.random() * (max - min + 1)) + min;
+    id = `patient_${randomNum}`;
+
+    const query = {
+      query: "SELECT * FROM c WHERE c.id = @id",
+      parameters: [{ name: "@id", value: id }],
+    };
+
+    const { resources } = await container.items.query(query).fetchAll();
+    existing = resources;
+  } while (existing.length > 0);
+
+  return randomNum;
+}
+
+
 async function fetchAllPatients() {
     const database = client.database(databaseId);
     const container = database.container("Patients");
@@ -97,7 +120,67 @@ async function fetchPatientByIdSeismic(patient_id) {
     }
 }
 
+// Function to create a new patient or merge with existing one
 async function createPatient(data) {
+    const database = client.database(databaseId);
+    const container = database.container("Patients");
+    try{
+        const firstName = (data.first_name || '').toLowerCase().trim();
+        const lastName = (data.last_name || '').toLowerCase().trim();
+        const ssn = (data.ssn || '').trim();
+        const existingPatientQuery = {
+            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.firstname) = @first_name AND LOWER(c.original_json.original_json.details.lastname) = @last_name AND c.original_json.original_json.details.ssn = @ssn",
+            parameters: [
+                { name: "@first_name", value: firstName },
+                { name: "@last_name", value: lastName },
+                { name: "@ssn", value: ssn }
+            ]
+        };
+        const { resources: existingPatients } = await container.items.query(existingPatientQuery).fetchAll();
+        if (existingPatients && existingPatients.length > 0) {
+            const existingPatient = existingPatients[0];
+            const merged = {
+                ...existingPatient,
+                original_json : {
+                    ...existingPatient.original_json,
+                    original_json: {
+                        ...existingPatient.original_json.original_json,
+                        ...data,
+                    },
+                },
+                updated_at: new Date().toISOString()
+            };
+            const { resource: updatedPatient } = await container.items.upsert(merged);
+            return updatedPatient;
+        }
+        const id = await generateUniquePatientId(container);
+        const practice_id = Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;
+        const newPatient = {
+            id: `patient_${id}`,
+            patientID: id,
+            practiceID: practice_id,
+            original_json: {
+                id: `patient_${id}`,
+                patientID: id,
+                practiceID: practice_id,
+                original_json: {
+                   patient_id: id,
+                   practice_id: practice_id,
+                   ...data,
+                }
+            },
+            created_at: new Date().toISOString(),
+        };
+        const { resource } = await container.items.create(newPatient);
+        return resource;
+    } catch (error) {
+        console.log("Error creating patient:", error);
+        throw new Error("Failed to create patient");
+    }
+}
+
+// Function to create a new patient in Seismic backend or merge with existing one
+async function createPatientSeismic(data) {
     const database = client.database(process.env.COSMOS_DATABASE);
     const container = database.container("patients");
     try{
@@ -142,5 +225,6 @@ module.exports = {
     fetchPatientById,
     createPatient,
     fetchAllPatientsSeismic,
-    fetchPatientByIdSeismic
+    fetchPatientByIdSeismic,
+    createPatientSeismic
 };

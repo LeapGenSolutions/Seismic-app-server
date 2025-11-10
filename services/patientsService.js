@@ -167,7 +167,7 @@ async function createPatient(data) {
                    patient_id: id,
                    practice_id: practice_id,
                    ...data,
-                   ssn: id,
+                   ssn: String(id),
                 }
             },
             created_at: new Date().toISOString(),
@@ -187,7 +187,7 @@ async function createPatientSeismic(data) {
     try{
         const firstName = (data.first_name || '').toLowerCase().trim();
         const lastName = (data.last_name || '').toLowerCase().trim();
-        const ssn = (data.ssn || '').trim();
+        const ssn = (data.patient_id || '').trim();
         const existingPatientQuery = {
             query: "SELECT * FROM c WHERE LOWER(c.first_name) = @first_name AND LOWER(c.last_name) = @last_name AND c.ssn = @ssn",
             parameters: [
@@ -202,6 +202,7 @@ async function createPatientSeismic(data) {
             const merged = {
                 ...existingPatient,
                 ...data,
+                ssn: ssn,
                 updated_at: new Date().toISOString()
             };
             const { resource: updatedPatient } = await container.items.upsert(merged);
@@ -211,6 +212,7 @@ async function createPatientSeismic(data) {
         const newPatient = {
             id: id,
             ...data,
+            ssn: ssn,
             created_at: new Date().toISOString(),
         };
         const { resource } = await container.items.create(newPatient);

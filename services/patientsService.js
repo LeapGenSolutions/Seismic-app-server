@@ -167,6 +167,7 @@ async function createPatient(data) {
                    patient_id: id,
                    practice_id: practice_id,
                    ...data,
+                   ssn: `patient_${id}`,
                 }
             },
             created_at: new Date().toISOString(),

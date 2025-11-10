@@ -221,8 +221,8 @@ async function createPatientSeismic(data) {
 
         // Create new Seismic record with same IDs from chatbot
         const newPatient = {
-            id: patient_id,       // same Cosmos id as chatbot
-            patient_id: patient_id,
+            id: generatePatientId(data.first_name, data.last_name, ssn),       
+            //patient_id: patient_id,
             ssn: ssn,
             ...data,
             created_at: new Date().toISOString(),

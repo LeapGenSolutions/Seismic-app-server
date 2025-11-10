@@ -184,39 +184,53 @@ async function createPatient(data) {
 async function createPatientSeismic(data) {
     const database = client.database(process.env.COSMOS_DATABASE);
     const container = database.container("patients");
-    try{
+
+    try {
         const firstName = (data.first_name || '').toLowerCase().trim();
-        const lastName = (data.last_name || '').toLowerCase().trim();
-        const ssn = (data.patient_id || '').trim();
+        const lastName  = (data.last_name  || '').toLowerCase().trim();
+
+        // Reuse the ID generated from chatbot
+        // Expect "patient_3887" format from frontend
+        const patient_id = String(data.patient_id || '').trim();
+        const ssn = String(patient_id); // numeric part only
+
+        // Find existing record in Seismic by same name + ssn
         const existingPatientQuery = {
-            query: "SELECT * FROM c WHERE LOWER(c.first_name) = @first_name AND LOWER(c.last_name) = @last_name AND c.ssn = @ssn",
+            query: "SELECT * FROM c WHERE LOWER(c.first_name)=@first_name AND LOWER(c.last_name)=@last_name AND c.ssn=@ssn",
             parameters: [
                 { name: "@first_name", value: firstName },
-                { name: "@last_name", value: lastName },
-                { name: "@ssn", value: ssn }
-            ]
+                { name: "@last_name",  value: lastName },
+                { name: "@ssn",        value: ssn },
+            ],
         };
+
         const { resources: existingPatients } = await container.items.query(existingPatientQuery).fetchAll();
+
         if (existingPatients && existingPatients.length > 0) {
             const existingPatient = existingPatients[0];
             const merged = {
                 ...existingPatient,
                 ...data,
-                ssn: ssn,
-                updated_at: new Date().toISOString()
+                patient_id,
+                ssn,
+                created_at: new Date().toISOString(),
             };
             const { resource: updatedPatient } = await container.items.upsert(merged);
             return updatedPatient;
         }
-        const id = generatePatientId(data.first_name, data.last_name, data.ssn);
+
+        // Create new Seismic record with same IDs from chatbot
         const newPatient = {
-            id: id,
-            ...data,
+            id: patient_id,       // same Cosmos id as chatbot
+            patient_id: patient_id,
             ssn: ssn,
+            ...data,
             created_at: new Date().toISOString(),
         };
+
         const { resource } = await container.items.create(newPatient);
         return resource;
+
     } catch (error) {
         console.log("Error creating patient:", error);
         throw new Error("Failed to create patient");

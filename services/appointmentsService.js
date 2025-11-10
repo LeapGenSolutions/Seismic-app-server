@@ -122,7 +122,7 @@ async function createAppointment(userId, data) {
         gender : data.gender,
         mrn : data.mrn,
         ehr : data.ehr,
-        ssn : data.patient_id,
+        ssn : String(data.patient_id),
         doctor_id : data.doctor_id,
         doctor_name : data.doctor_name,
         doctor_email : normalizedDoctorEmail,

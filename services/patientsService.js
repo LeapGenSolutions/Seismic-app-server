@@ -129,7 +129,7 @@ async function createPatient(data) {
         const lastName = (data.last_name || '').toLowerCase().trim();
         const email = (data.email || '').toLowerCase().trim();
         const existingPatientQuery = {
-            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.firstname) = @first_name AND LOWER(c.original_json.original_json.details.lastname) = @last_name AND c.original_json.original_json.details.email = @email",
+            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.first_name) = @first_name AND LOWER(c.original_json.original_json.last_name) = @last_name AND c.original_json.original_json.email = @email",
             parameters: [
                 { name: "@first_name", value: firstName },
                 { name: "@last_name", value: lastName },
@@ -175,7 +175,8 @@ async function createPatient(data) {
         const { resource } = await container.items.create(newPatient);
         return resource;
     } catch (error) {
-        console.log("Error creating patient:", error);
+        console.log("Error creating patient:", error.message);
+        console.log("Stack:", error.stack);
         throw new Error("Failed to create patient");
     }
 }
@@ -184,7 +185,7 @@ async function createPatient(data) {
 async function createPatientSeismic(data) {
     const database = client.database(process.env.COSMOS_DATABASE);
     const container = database.container("patients");
-    const chatbotDatabase = client.database(databaseId);
+    const chatbotDatabase = client.database("seismic-chat-bot");
     const chatbotContainer = chatbotDatabase.container("Patients");
     try{
         const firstName = (data.first_name || '').toLowerCase().trim();
@@ -193,7 +194,7 @@ async function createPatientSeismic(data) {
         let ssn = "";
 
         const existingPatientQueryForChatBot = {
-            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.firstname) = @first_name AND LOWER(c.original_json.original_json.details.lastname) = @last_name AND c.original_json.original_json.details.email = @email",
+            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.first_name) = @first_name AND LOWER(c.original_json.original_json.last_name) = @last_name AND c.original_json.original_json.email = @email",
             parameters: [
                 { name: "@first_name", value: firstName },
                 { name: "@last_name", value: lastName },
@@ -202,15 +203,18 @@ async function createPatientSeismic(data) {
         };
 
         const {resources: existingPatientForChatBot} = await chatbotContainer.items.query(existingPatientQueryForChatBot).fetchAll();
-        if(existingPatientForChatBot && existingPatientForChatBot.length == 0){
-            const createPatientChatBot = await createPatient(data);
-            ssn = String(createPatientChatBot.patientID);
-        }
-        else{
-            const found = existingPatientForChatBot[0];
-            ssn = String(found.patientID);
+        console.log("Chatbot lookup results:", existingPatientForChatBot.length);
+        if (existingPatientForChatBot.length > 0) {
+          console.log("Found chatbot patient:", existingPatientForChatBot[0].id);
         }
 
+        if (!existingPatientForChatBot.length) {
+            throw new Error("Patient not found in Chatbot DB; create it first");
+        }
+
+        const found = existingPatientForChatBot[0];
+        ssn = String(found.patientID || found.original_json?.patientID || found.original_json?.original_json?.patient_id);
+        console.log("Using SSN:", ssn);
 
         const existingPatientQuery = {
             query: "SELECT * FROM c WHERE LOWER(c.first_name) = @first_name AND LOWER(c.last_name) = @last_name AND c.ssn = @ssn",
@@ -220,6 +224,7 @@ async function createPatientSeismic(data) {
                 { name: "@ssn", value: ssn }
             ]
         };
+
         const { resources: existingPatients } = await container.items.query(existingPatientQuery).fetchAll();
         if (existingPatients && existingPatients.length > 0) {
             const existingPatient = existingPatients[0];
@@ -232,6 +237,7 @@ async function createPatientSeismic(data) {
             const { resource: updatedPatient } = await container.items.upsert(merged);
             return updatedPatient;
         }
+
         const id = generatePatientId(data.first_name, data.last_name, ssn);
         const newPatient = {
             id: id,
@@ -242,7 +248,8 @@ async function createPatientSeismic(data) {
         const { resource } = await container.items.create(newPatient);
         return resource;
     } catch (error) {
-        console.log("Error creating patient:", error);
+        console.log("Detailed error in createPatientSeismic:", error.message);
+        console.log("Stack:", error.stack);
         throw new Error("Failed to create patient");
     }
 }

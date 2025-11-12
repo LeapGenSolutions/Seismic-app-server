@@ -17,7 +17,7 @@ function generatePatientId(firstName, lastName, ssn) {
 // Function to generate a unique patient ID for chatbot patients
 async function generateUniquePatientId(container) {
   const min = 1001;
-  const max = 4301;
+  const max = 6000;
   let randomNum, id, { resources: existing } = { resources: [] };
 
   do {

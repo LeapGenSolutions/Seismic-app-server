@@ -144,8 +144,10 @@ async function createPatient(data) {
                 original_json : {
                     ...existingPatient.original_json,
                     original_json: {
-                        ...existingPatient.original_json.original_json,
-                        ...data,
+                        details: {
+                            ...existingPatient.original_json.original_json,
+                            ...data,
+                        }
                     },
                 },
                 updated_at: new Date().toISOString()
@@ -164,10 +166,12 @@ async function createPatient(data) {
                 patientID: id,
                 practiceID: practice_id,
                 original_json: {
-                   patient_id: id,
-                   practice_id: practice_id,
-                   ...data,
-                   ssn: String(id),
+                    details: {
+                        patient_id: id,
+                        practice_id: practice_id,
+                        ...data,
+                        ssn: String(id),
+                    }
                 }
             },
             created_at: new Date().toISOString(),

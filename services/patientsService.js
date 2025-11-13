@@ -129,7 +129,7 @@ async function createPatient(data) {
         const lastName = (data.last_name || '').toLowerCase().trim();
         const email = (data.email || '').toLowerCase().trim();
         const existingPatientQuery = {
-            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.first_name) = @first_name AND LOWER(c.original_json.original_json.last_name) = @last_name AND c.original_json.original_json.email = @email",
+            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.first_name) = @first_name AND LOWER(c.original_json.original_json.details.last_name) = @last_name AND c.original_json.original_json.details.email = @email",
             parameters: [
                 { name: "@first_name", value: firstName },
                 { name: "@last_name", value: lastName },
@@ -195,30 +195,7 @@ async function createPatientSeismic(data) {
         const firstName = (data.first_name || '').toLowerCase().trim();
         const lastName = (data.last_name || '').toLowerCase().trim();
         const email = (data.email || '').toLowerCase().trim();
-        let ssn = "";
-
-        const existingPatientQueryForChatBot = {
-            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.first_name) = @first_name AND LOWER(c.original_json.original_json.last_name) = @last_name AND c.original_json.original_json.email = @email",
-            parameters: [
-                { name: "@first_name", value: firstName },
-                { name: "@last_name", value: lastName },
-                { name: "@email", value: email }
-            ]
-        };
-
-        const {resources: existingPatientForChatBot} = await chatbotContainer.items.query(existingPatientQueryForChatBot).fetchAll();
-        console.log("Chatbot lookup results:", existingPatientForChatBot.length);
-        if (existingPatientForChatBot.length > 0) {
-          console.log("Found chatbot patient:", existingPatientForChatBot[0].id);
-        }
-
-        if (!existingPatientForChatBot.length) {
-            throw new Error("Patient not found in Chatbot DB; create it first");
-        }
-
-        const found = existingPatientForChatBot[0];
-        ssn = String(found.patientID || found.original_json?.patientID || found.original_json?.original_json?.patient_id);
-        console.log("Using SSN:", ssn);
+        ssn = data.ssn;
 
         const existingPatientQuery = {
             query: "SELECT * FROM c WHERE LOWER(c.first_name) = @first_name AND LOWER(c.last_name) = @last_name AND c.ssn = @ssn",
@@ -242,7 +219,7 @@ async function createPatientSeismic(data) {
             return updatedPatient;
         }
 
-        const id = generatePatientId(data.first_name, data.last_name, ssn);
+        const id = await generatePatientId(data.first_name, data.last_name, ssn);
         const newPatient = {
             id: id,
             ...data,
@@ -258,11 +235,50 @@ async function createPatientSeismic(data) {
     }
 }
 
+// Function to create patient in both Chatbot and Seismic containers simultaneously
+async function createPatientBoth(data) {
+
+  try {
+    const chatbotPatient = await createPatient(data);
+
+    const patientID =
+      chatbotPatient?.patientID ||
+      chatbotPatient?.original_json?.patientID ||
+      chatbotPatient?.original_json?.original_json?.details?.patient_id;
+
+    if (!patientID) {
+      throw new Error("Failed to get patient ID from chatbot creation");
+    }
+
+    console.log("✅ Created in Chatbot DB with patientID:", patientID);
+
+    const seismicData = {
+      ...data,
+      ssn: String(patientID),
+    };
+
+    try {
+      const seismicPatient = await createPatientSeismic(seismicData);
+      console.log("✅ Created in Seismic DB with ssn:", patientID);
+      return { chatbotPatient, seismicPatient };
+    } catch (error) {
+      console.error("⚠️ Seismic creation failed:", error.message);
+      return { chatbotPatient, seismicPatient: null, error: "Seismic creation failed" };
+    }
+
+  } catch (error) {
+    console.error("❌ Error in createPatientBoth:", error.message);
+    throw new Error("Failed to create patient in both systems");
+  }
+}
+
+
 module.exports = {
     fetchAllPatients,
     fetchPatientById,
     createPatient,
     fetchAllPatientsSeismic,
     fetchPatientByIdSeismic,
-    createPatientSeismic
+    createPatientSeismic,
+    createPatientBoth
 };

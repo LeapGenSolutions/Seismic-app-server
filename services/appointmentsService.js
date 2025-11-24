@@ -1,5 +1,8 @@
 const { CosmosClient } = require("@azure/cosmos");
+const { BlobServiceClient } = require("@azure/storage-blob");
 const crypto = require("crypto");
+const { start } = require("repl");
+const { blob } = require("stream/consumers");
 require("dotenv").config();
 
 const endpoint = process.env.COSMOS_ENDPOINT;
@@ -169,4 +172,74 @@ async function createAppointment(userId, data) {
   }
 }
 
-module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment };
+const createBulkAppointments = async (file, data) => {
+  const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.RECORDINGS_BLOB_CONNECTION_STRING);
+  const containerClient = blobServiceClient.getContainerClient("seismic-appointment-uploads");
+  const blobName = `${Date.now()}-${file.originalname}`;
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+  try {
+    await blockBlobClient.uploadData(file.buffer);
+    const resource  = await startJob({
+      "env": "dev",
+      "file_name": blobName,
+      "doctor_name": data.doctor_name,
+      "doctor_email": data.userId,
+      "specialization": data.specialization,
+      "practice_id": data.practice_id,
+      "doctor_id": data.doctor_id
+    });
+    return { message: "File uploaded successfully", fileName : blobName, fileUrl: blockBlobClient.url, resource };
+  } catch (error) {
+    console.error("Error uploading bulk appointments file:", error);
+    throw error;
+  }
+};
+
+const getToken = async () => {
+  try{
+    const url = `https://login.microsoftonline.com/${process.env.TENANT_ID}/oauth2/token`;
+    const params = new URLSearchParams();
+    params.append("client_id", process.env.CLIENT_ID);
+    params.append("client_secret", process.env.CLIENT_SECRET);
+    params.append("grant_type", "client_credentials");
+    params.append("resource", "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d");
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+      body: params
+    });
+    const data = await response.json();
+    return data.access_token;
+  }catch (err){
+    console.error("error: ", err);
+    throw err;
+  }
+}
+
+const startJob = async(data) => {
+  try{
+    const response = await fetch(`${process.env.DATABRICKS_WORKSPACE_URL}/api/2.1/jobs/run-now`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await getToken()}`,
+          'content-type': 'application/json'
+        },
+        body : JSON.stringify({
+            "job_id" : process.env.JOB_ID,
+            "notebook_params" : data
+          }
+        )
+      }
+    )
+    const result = await response.json();
+    return result;   
+  }catch(err){
+    console.error("error starting job: ", err);
+    throw err;
+  }
+}
+
+module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments };

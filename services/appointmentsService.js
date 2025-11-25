@@ -242,4 +242,56 @@ const startJob = async(data) => {
   }
 }
 
-module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments };
+const deleteAppointment = async (user_id, appointmentId) => {
+  const database = client.database(databaseId);
+  const container = database.container("seismic_appointments");
+  const normalizedDoctorEmail = (user_id || '').toLowerCase();
+  try{
+    const today = new Date().toISOString().slice(0, 10);
+    const quesry = {
+      query: `SELECT * FROM c WHERE c.id = @id`,
+      parameters: [{ name: "@id", value: today }]
+    };
+    const { resources: results } = await container.items.query(quesry).fetchAll();
+    if(results.length === 0){
+      throw new Error("No appointments found for today");
+    }
+    const todaysAppointments = results[0].data;
+    const filteredAppointments = todaysAppointments.filter(app => !(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail));
+    await container.items.upsert({ id: today, data: filteredAppointments });
+  }catch(err){
+    console.error("error deleting appointment: ", err);
+    throw err;
+  }
+};
+
+const updateAppointment = async (user_id, appointmentId, updatedData) => {
+  const database = client.database(databaseId);
+  const container = database.container("seismic_appointments");
+  const normalizedDoctorEmail = (user_id || '').toLowerCase();
+  try{
+    const today = new Date().toISOString().slice(0, 10);
+    const quesry = {
+      query: `SELECT * FROM c WHERE c.id = @id`,
+      parameters: [{ name: "@id", value: today }]
+    };
+    const { resources: results } = await container.items.query(quesry).fetchAll();
+    if(results.length === 0){
+      throw new Error("No appointments found for today");
+    }
+    const todaysAppointments = results[0].data;
+    const updatedAppointments = todaysAppointments.map(app => {
+      if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
+        return { ...app, ...updatedData };
+      }
+      return app;
+    });
+    await container.items.upsert({ id: today, data: updatedAppointments });
+  }catch(err){
+    console.error("error updating appointment: ", err);
+    throw err;
+  }
+}
+
+
+module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment };

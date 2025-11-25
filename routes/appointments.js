@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { fetchAppointmentsByEmails, createAppointment, createBulkAppointments } = require("../services/appointmentsService");
+const { fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment } = require("../services/appointmentsService");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -33,6 +33,27 @@ router.post("/bulk/appointments", upload.single("file"), async (req, res) => {
     }
     const result = await createBulkAppointments(req.file, data);
     res.status(201).json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/:email/appointment/:id", async (req, res) => {
+  try{
+    const { email, id } = req.params;
+    await deleteAppointment(email, id);
+    res.status(200).json({ message: "Appointment deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/:email/appointment/:id", async (req, res) => {
+  try{
+    const { email, id } = req.params;
+    const data = req.body;
+    const updatedAppointments = await updateAppointment(email, id, data);
+    res.status(200).json(updatedAppointments);
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }

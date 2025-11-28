@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   insertCallHistory,
-  fetchDoctorsFromCallHistory,
+  fetchDoctors,
   fetchCallHistoryFromEmails,
   checkAppointmentsInCallHistory
 } = require("../services/callHistoryService");
@@ -27,7 +27,7 @@ router.post("/checkAppointments", async (req, res) => {
 
 router.get("/doctors", async (req, res) => {
   try {
-    const item = await fetchDoctorsFromCallHistory();
+    const item = await fetchDoctors();
     res.json(item);
   } catch (err) {
     res.status(404).json({ error: "Item not found" });

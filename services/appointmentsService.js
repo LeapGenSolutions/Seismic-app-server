@@ -120,7 +120,7 @@ async function createAppointment(userId, data) {
   const currentDate = new Date().toISOString().slice(0, 10);
 
   const patientId = Number(data.patient_id);
-  const doctorId = generateDoctorId(normalizedDoctorEmail); //  Always proper 32-char format
+  const doctorId = data.doctor_id;
 
   const newAppointment = {
     id: generateId(24),

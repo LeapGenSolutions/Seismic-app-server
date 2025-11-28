@@ -42,11 +42,11 @@ async function fetchEmailFromCallHistory(id) {
         throw new Error("Item not found");
     }
 }
-async function fetchDoctorsFromCallHistory() {
+async function fetchDoctors() {
     const database = client.database("seismic-backend-athena");
-    const container = database.container("seismic_call_history");
+    const container = database.container("doctors");
     try {
-        const querySpec = { query: `SELECT distinct c.userID, c.fullName from c` };
+        const querySpec = { query: `SELECT * from c` };
         const { resources: items } = await container.items.query(querySpec).fetchAll();
         return items;
     } catch (error) {
@@ -94,7 +94,7 @@ module.exports = {
     insertCallHistory,
     updateCallHistory,
     fetchEmailFromCallHistory,
-    fetchDoctorsFromCallHistory,
+    fetchDoctors,
     fetchCallHistoryFromEmails,
     checkAppointmentsInCallHistory
 };

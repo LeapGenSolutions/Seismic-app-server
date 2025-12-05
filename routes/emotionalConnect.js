@@ -3,10 +3,11 @@ const router = express.Router();
 const { fetchEmotionalEmpathy, fetchLongitudinalSentiment, fetchSentimentAnalysis } = require("../services/EmotionalConnectService");
 const { use } = require("react");
 
-router.get("/emotional-empathy/:userId/:id", async (req, res) => {
+router.get("/emotional-empathy/:userId", async (req, res) => {
     try {
-        const { userId, id } = req.params;
-        const items = await fetchEmotionalEmpathy(id, userId);
+        const { userId } = req.params;
+        const data = req.body;
+        const items = await fetchEmotionalEmpathy(data, userId);
         res.json(items);
     }
     catch (err) {

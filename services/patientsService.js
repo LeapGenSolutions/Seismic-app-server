@@ -133,11 +133,12 @@ async function createPatient(data) {
             parameters: [
                 { name: "@first_name", value: firstName },
                 { name: "@last_name", value: lastName },
-                { name: "@email", value: data.email }
+                { name: "@email", value: email }
             ]
         };
         const { resources: existingPatients } = await container.items.query(existingPatientQuery).fetchAll();
         if (existingPatients && existingPatients.length > 0) {
+            const details = {...existingPatients[0].original_json.original_json.details, ...data};
             const existingPatient = existingPatients[0];
             const merged = {
                 ...existingPatient,
@@ -145,8 +146,7 @@ async function createPatient(data) {
                     ...existingPatient.original_json,
                     original_json: {
                         details: {
-                            ...existingPatient.original_json.original_json,
-                            ...data,
+                            ...details
                         }
                     },
                 },
@@ -240,7 +240,6 @@ async function createPatientBoth(data) {
 
   try {
     const chatbotPatient = await createPatient(data);
-
     const patientID =
       chatbotPatient?.patientID ||
       chatbotPatient?.original_json?.patientID ||
@@ -259,7 +258,6 @@ async function createPatientBoth(data) {
 
     try {
       const seismicPatient = await createPatientSeismic(seismicData);
-      console.log("✅ Created in Seismic DB with ssn:", patientID);
       return { chatbotPatient, seismicPatient };
     } catch (error) {
       console.error("⚠️ Seismic creation failed:", error.message);

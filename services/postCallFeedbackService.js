@@ -28,8 +28,12 @@ async function createPostCallFeedback(userId, appointmentId, data) {
         if (existingItem) {
             const updatedItem = {
                 ...existingItem,
-                rating : data.rating ? data.rating : existingItem.rating,
-                comments : data.comments ? data.comments : existingItem.comments,
+                overallExperience: data.overallExperience || existingItem.overallExperience,
+                summaryAccuracy: data.summaryAccuracy || existingItem.summaryAccuracy,
+                soapHelpfulness: data.soapHelpfulness || existingItem.soapHelpfulness,
+                billingAccuracy: data.billingAccuracy || existingItem.billingAccuracy,
+                transcriptAccuracy: data.transcriptAccuracy || existingItem.transcriptAccuracy,
+                featureSuggestions: data.featureSuggestions || existingItem.featureSuggestions,
                 last_update: new Date().toISOString(),
             }
             await container.item(id, userId).replace(updatedItem);
@@ -40,8 +44,12 @@ async function createPostCallFeedback(userId, appointmentId, data) {
             id : `${userId}_${appointmentId}_PostCallFeedback`,
             user_id: userId,
             appointment_id: appointmentId,
-            rating : data.rating,
-            comments: data.comments,
+            overallExperience: data.overallExperience,
+            summaryAccuracy: data.summaryAccuracy,
+            soapHelpfulness: data.soapHelpfulness,
+            billingAccuracy: data.billingAccuracy,
+            transcriptAccuracy: data.transcriptAccuracy,
+            featureSuggestions: data.featureSuggestions,
             created_at: new Date().toISOString(),
         }
         const { resource } = await container.items.create(item);

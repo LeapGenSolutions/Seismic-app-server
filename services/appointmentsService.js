@@ -3,6 +3,7 @@ const { BlobServiceClient } = require("@azure/storage-blob");
 const crypto = require("crypto");
 const { start } = require("repl");
 const { blob } = require("stream/consumers");
+const { createPatientBoth } = require("./patientsService");
 require("dotenv").config();
 
 const endpoint = process.env.COSMOS_ENDPOINT;
@@ -143,7 +144,9 @@ async function createAppointment(userId, data) {
     practice_id: "12345",
     insurance_verified: data.insurance_verified || false,
     insurance_provider: data.insurance_provider,
-    appointment_date: data.appointment_date
+    appointment_date: data.appointment_date,
+    ehr: data.ehr,
+    mrn: data.mrn
   };
 
   try {
@@ -287,6 +290,18 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
       return app;
     });
     await container.items.upsert({ id: today, data: updatedAppointments });
+    const appointment = updatedAppointments.find(app => app.id === appointmentId && app.doctor_email === normalizedDoctorEmail);
+    const updatedPatient = await createPatientBoth({
+      first_name: appointment.first_name,
+      middle_name: appointment.middle_name,
+      last_name: appointment.last_name,
+      dob: appointment.dob,
+      gender: appointment.gender,
+      email: appointment.email?.toLowerCase().trim(),
+      phone: appointment.phone?.replace(/\D/g, ""),
+      ehr: appointment.ehr,
+      mrn: appointment.mrn,
+    });
   }catch(err){
     console.error("error updating appointment: ", err);
     throw err;

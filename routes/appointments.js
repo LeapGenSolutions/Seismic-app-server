@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment } = require("../services/appointmentsService");
+const { fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment, cancelAnimationFrame } = require("../services/appointmentsService");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -47,6 +47,16 @@ router.delete("/:email/appointment/:id", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+router.patch("/:email/cancel/:id", async (req, res) => {
+  try{
+    const { email, id } = req.params;
+    await cancelAnimationFrame(email, id);
+    res.status(200).json({message: "Appointment cancel successfully"});
+  }catch (err) {
+    res.status(500).json({error : "internal server error"});
+  }
+})
 
 router.patch("/:email/appointment/:id", async (req, res) => {
   try{

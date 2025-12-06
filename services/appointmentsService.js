@@ -308,5 +308,40 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
   }
 }
 
+const cancelAnimationFrame = async(userId, appId) => {
+  const database = client.database(databaseId);
+  const container = database.container("seismic_appointments");
+  const normalizedDoctorEmail = (userId || '').toLowerCase();
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const quesry = {
+      query: `SELECT * FROM c WHERE c.id = @id`,
+      parameters: [{ name: "@id", value: today }]
+    };
+    const { resources: results } = await container.items.query(quesry).fetchAll();
+    if(results.length === 0){
+      throw new Error("No appointments found for today");
+    }
+    const todaysAppointments = results[0].data;
+    const appointment = todaysAppointments.find(app => app.id === appId && app.doctor_email === normalizedDoctorEmail);
+    const updatedAppointment = {
+      ...appointment,
+      status : "cancelled",
+      cancelled_at: new Date().toISOString().slice(0, 10),
+      cancelled_by : userId
+    }
+    const updatedAppointments = todaysAppointments.map(app => {
+      if(app.id === appId && app.doctor_email === normalizedDoctorEmail){
+        return updatedAppointment;
+      }
+      return app;
+    });
+    await container.items.upsert({ id: today, data: updatedAppointments });
+  } catch (err) {
+    console.error("error cancelling appointment: ", err);
+    throw err;
+  }
+}
 
-module.exports = { fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment };
+
+module.exports = { cancelAnimationFrame, fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment };

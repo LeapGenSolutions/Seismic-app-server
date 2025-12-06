@@ -308,7 +308,7 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
   }
 }
 
-const cancelAnimationFrame = async(userId, appId) => {
+const cancelAppointment = async(userId, appId) => {
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (userId || '').toLowerCase();
@@ -344,4 +344,4 @@ const cancelAnimationFrame = async(userId, appId) => {
 }
 
 
-module.exports = { cancelAnimationFrame, fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment };
+module.exports = { cancelAppointment, fetchAppointmentsByEmail, fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment };

@@ -123,7 +123,7 @@ async function createAppointment(userId, data) {
   const doctorId = data.doctor_id;
 
   const newAppointment = {
-    id: generateId(24),
+    id: data.id || generateId(24),
     type: "appointment",
     first_name: data.first_name,
     last_name: data.last_name,
@@ -156,10 +156,18 @@ async function createAppointment(userId, data) {
         parameters: [{ name: "@id", value: date }]
       };
       const { resources: results } = await container.items.query(query).fetchAll();
-      existingAppointments = results ? results[0].data : null;
+      existingAppointments = results && results !== null ? results[0]?.data : null;
     } catch (qErr) {
       console.error('Fallback query to read date document failed:', qErr);
       existingAppointments = null;
+    }
+    if(existingAppointments === null) {
+      const item = {
+        id: date,
+        data: [newAppointment]
+      }
+      const { resource: createdItem } = await container.items.create(item);
+      return createdItem;
     }
 
     const updatedData = existingAppointments && Array.isArray(existingAppointments)
@@ -271,7 +279,7 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (user_id || '').toLowerCase();
-  const date = updatedData.appointment_date;
+  const date = updatedData.original_appointment_date;
   try{
     const quesry = {
       query: `SELECT * FROM c WHERE c.id = @id`,
@@ -281,27 +289,42 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
     if(results.length === 0){
       throw new Error("No appointments found for today");
     }
-    const todaysAppointments = results[0].data;
-    const updatedAppointments = todaysAppointments.map(app => {
-      if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
-        return { ...app, ...updatedData };
-      }
-      return app;
+    const appointments = results[0].data;
+    const currentAppointment = appointments.find(app => app.id === appointmentId && app.doctor_email === normalizedDoctorEmail);
+    const updatedAppointment = {
+      ...currentAppointment,
+      ...updatedData,
+      appointment_date: updatedData.appointment_date,
+      original_appointment_date: undefined,
+      cancelled_at: undefined,
+      cancelled_by: undefined,
+      cancelled_reason: undefined,
+      status: "scheduled"
+    }
+    if(updatedData.appointment_date !== updatedData.original_appointment_date){
+      await deleteAppointment(user_id, appointmentId, updatedData.original_appointment_date);
+      await createAppointment(user_id, updatedAppointment);
+    } else {
+      const updatedAppointments = appointments.map(app => {
+        if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
+          return { ...app, ...updatedAppointment };
+        }
+        return app;
+      });
+      await container.items.upsert({ id: date, data: updatedAppointments });
+    }
+    await createPatientBoth({
+      first_name: updatedAppointment.first_name,
+      middle_name: updatedAppointment.middle_name,
+      last_name: updatedAppointment.last_name,
+      dob: updatedAppointment.dob,
+      gender: updatedAppointment.gender,
+      email: updatedAppointment.email?.toLowerCase().trim(),
+      phone: updatedAppointment.phone?.replace(/\D/g, ""),
+      ehr: updatedAppointment.ehr,
+      mrn: updatedAppointment.mrn,
     });
-    const {resource: updatedItem} = await container.items.upsert({ id: date, data: updatedAppointments });
-    const appointment = updatedAppointments.find(app => app.id === appointmentId && app.doctor_email === normalizedDoctorEmail);
-    const updatedPatient = await createPatientBoth({
-      first_name: appointment.first_name,
-      middle_name: appointment.middle_name,
-      last_name: appointment.last_name,
-      dob: appointment.dob,
-      gender: appointment.gender,
-      email: appointment.email?.toLowerCase().trim(),
-      phone: appointment.phone?.replace(/\D/g, ""),
-      ehr: appointment.ehr,
-      mrn: appointment.mrn,
-    });
-    return updatedItem;
+    return updatedAppointment;
   }catch(err){
     console.error("error updating appointment: ", err);
     throw err;

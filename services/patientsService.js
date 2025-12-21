@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { CosmosClient } = require("@azure/cosmos");
-const { param } = require("../routes/callHistory");
-const { create } = require('domain');
+//const { param } = require("../routes/callHistory");
+//const { create } = require('domain');
 require("dotenv").config();
 
 const endpoint = process.env.COSMOS_ENDPOINT;
@@ -14,7 +14,7 @@ function generatePatientId(firstName, lastName, ssn) {
   return crypto.createHash('sha256').update(base, 'utf8').digest('hex');
 }
 
-// Function to generate a unique patient ID for chatbot patients
+// Generate unique numeric patient ID (chatbot DB)
 async function generateUniquePatientId(container) {
   const min = 1001;
   const max = 6000;
@@ -36,247 +36,219 @@ async function generateUniquePatientId(container) {
   return randomNum;
 }
 
+/* ---------------- READ : ALL PATIENTS ---------------- */
 
 async function fetchAllPatients() {
-    const database = client.database(databaseId);
-    const container = database.container("Patients");
-    const querySpec = { query: "SELECT c.original_json from c" };
-    const { resources: items } = await container.items.query(querySpec).fetchAll();
-    const result = items.map(item => {
+  const database = client.database(databaseId);
+  const container = database.container("Patients");
 
-        if (item?.original_json?.details) {
-            return {
-                "patient_id": item?.original_json?.patient_id,
-                "practice_id": item?.original_json?.practice_id,
-                ...item?.original_json?.details
-            }
-        }
-        if (!item?.original_json?.details) {
-            return {
-                "patient_id": item?.original_json?.patientID,
-                "practice_id": item?.original_json?.practiceID,
-                ...item?.original_json?.original_json?.details
-            }
-        }
-    })
-    return result;
+  const querySpec = { query: "SELECT c.original_json FROM c" };
+  const { resources } = await container.items.query(querySpec).fetchAll();
+
+  return resources.map(item => {
+    const oj = item.original_json;
+
+    // ✅ NEW FORMAT
+    if (oj?.original_json?.details) {
+      return {
+        patient_id: oj.original_json.patient_id,
+        practice_id: oj.original_json.practice_id,
+        ...oj.original_json.details,
+      };
+    }
+
+    // 🧯 OLD FORMAT
+    if (oj?.original_json?.original_json?.details) {
+      const d = oj.original_json.original_json.details;
+
+      return {
+        patient_id: oj.patientID,
+        practice_id: oj.practiceID,
+        firstname: d.first_name || "",
+        lastname: d.last_name || "",
+        dob: d.dob || "",
+        sex: d.gender || "",
+        email: d.email || "",
+        contactmobilephone: d.phone || "",
+        ssn: d.ssn || "",
+      };
+    }
+
+    return null;
+  }).filter(Boolean);
 }
+
+/* ---------------- READ : PATIENT BY ID ---------------- */
 
 async function fetchPatientById(patient_id) {
-    const database = client.database(databaseId);
-    const container = database.container("Patients");
-    const querySpec = {
-        query: "SELECT c.original_json from c where c.patientID = @patientId",
-        parameters: [{ name: "@patientId", value: Number(patient_id) }]
+  const database = client.database(databaseId);
+  const container = database.container("Patients");
+
+  const querySpec = {
+    query: "SELECT c.original_json FROM c WHERE c.patientID = @patientId",
+    parameters: [{ name: "@patientId", value: Number(patient_id) }]
+  };
+
+  const { resources } = await container.items.query(querySpec).fetchAll();
+  const oj = resources?.[0]?.original_json;
+  if (!oj) return null;
+
+  // ✅ NEW FORMAT
+  if (oj?.original_json?.details) {
+    return {
+      patient_id: oj.original_json.patient_id,
+      practice_id: oj.original_json.practice_id,
+      ...oj.original_json.details,
     };
-    const { resources: items } = await container.items.query(querySpec).fetchAll();
-    const item = items[0];
-    let result = {};
-    if (item?.original_json?.details) {
-        result =  {
-            "patient_id": item?.original_json?.patient_id,
-            "practice_id": item?.original_json?.practice_id,
-            ...item?.original_json?.details
-        }
-    }
-    if (!item?.original_json?.details) {
-        result = {
-            "patient_id": item?.original_json?.patientID,
-            "practice_id": item?.original_json?.practiceID,
-            ...item?.original_json?.original_json?.details
-        }
-    }
-    return result;
+  }
+
+  // 🧯 OLD FORMAT
+  if (oj?.original_json?.original_json?.details) {
+    const d = oj.original_json.original_json.details;
+
+    return {
+      patient_id: oj.patientID,
+      practice_id: oj.practiceID,
+      firstname: d.first_name || "",
+      lastname: d.last_name || "",
+      dob: d.dob || "",
+      sex: d.gender || "",
+      email: d.email || "",
+      contactmobilephone: d.phone || "",
+      ssn: d.ssn || "",
+    };
+  }
+
+  return null;
 }
 
+/* ---------------- CREATE : CHATBOT (NEW FORMAT ONLY) ---------------- */
 
-// These api's fetch data from the seismic backend.
+async function createPatient(data) {
+  const database = client.database(databaseId);
+  const container = database.container("Patients");
+
+  const id = await generateUniquePatientId(container);
+  const practice_id = Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;
+
+  const newPatient = {
+    id: `patient_${id}`,
+    patientID: id,
+    practiceID: practice_id,
+    original_json: {
+      id: `patient_${id}`,
+      patientID: id,
+      practiceID: practice_id,
+      original_json: {
+        patient_id: id,
+        practice_id: practice_id,
+        details: {
+          firstname: data.firstname || data.first_name || "",
+          middlename: data.middlename || "",
+          lastname: data.lastname || data.last_name || "",
+          dob: data.dob || "",
+          sex: data.sex || data.gender || "",
+          address1: data.address1 || "",
+          city: data.city || "",
+          state: data.state || "",
+          zip: data.zip || "",
+          countrycode: data.countrycode || "USA",
+          email: data.email || "",
+          contactmobilephone: data.contactmobilephone || data.phone || "",
+          contacthomephone: data.contacthomephone || "",
+          contactpreference: data.contactpreference || "",
+          ehr: data.ehr || "",
+          mrn: data.mrn || "",
+          ssn: String(id),
+          maritalstatus: data.maritalstatus || "",
+          employername: data.employername || "",
+          employerphone: data.employerphone || "",
+          preferredpronouns: data.preferredpronouns || "",
+          portalaccessgiven: data.portalaccessgiven || "N",
+          portalsignatureonfile: !!data.portalsignatureonfile,
+          portalstatus: data.portalstatus || [
+            {
+                registeredyn: "Y",
+                status: "Active",
+                lastlogindate: new Date().toISOString().split("T")[0],
+                portalregistrationdate: new Date().toISOString().split("T")[0]
+            }
+            ],
+          privacyinformationverified: !!data.privacyinformationverified,
+          race: data.race || "",
+          ethnicitycode: data.ethnicitycode || "",
+          language6392code: data.language6392code || "en",
+        }
+      }
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  const { resource } = await container.items.create(newPatient);
+  return resource;
+}
+
+/* ---------------- SEISMIC BACKEND ---------------- */
+
 async function fetchAllPatientsSeismic() {
-    const database = client.database(process.env.COSMOS_DATABASE);
-    const container = database.container("patients");
-    try{
-        const querySpec = { query: "SELECT * from c" };
-        const { resources: items } = await container.items.query(querySpec).fetchAll();
-        return items;
-    } catch (error) {
-        console.error("Error fetching patients from Seismic:", error);
-        throw new Error("Failed to fetch patients from Seismic");
-    }
+  const database = client.database(process.env.COSMOS_DATABASE);
+  const container = database.container("patients");
+  const { resources } = await container.items.query({ query: "SELECT * FROM c" }).fetchAll();
+  return resources;
 }
 
 async function fetchPatientByIdSeismic(patient_id) {
-    const database = client.database(process.env.COSMOS_DATABASE);
-    const container = database.container("patients");
-    try{
-        const querySpec = {
-            query: "SELECT * from c where c.id = @id",
-            parameters: [{ name: "@id", value: patient_id }]
-        };
-        const { resources: items } = await container.items.query(querySpec).fetchAll();
-        return items[0];
-    } catch (error) {
-        console.error("Error fetching patient from Seismic:", error);
-        throw new Error("Failed to fetch patient from Seismic");
-    }
+  const database = client.database(process.env.COSMOS_DATABASE);
+  const container = database.container("patients");
+  const { resources } = await container.items.query({
+    query: "SELECT * FROM c WHERE c.id = @id",
+    parameters: [{ name: "@id", value: patient_id }]
+  }).fetchAll();
+  return resources[0];
 }
 
-// Function to create a new patient or merge with existing one
-async function createPatient(data) {
-    const database = client.database(databaseId);
-    const container = database.container("Patients");
-    try{
-        const firstName = (data.first_name || '').toLowerCase().trim();
-        const lastName = (data.last_name || '').toLowerCase().trim();
-        const email = (data.email || '').toLowerCase().trim();
-        const existingPatientQuery = {
-            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.first_name) = @first_name AND LOWER(c.original_json.original_json.details.last_name) = @last_name AND c.original_json.original_json.details.email = @email",
-            parameters: [
-                { name: "@first_name", value: firstName },
-                { name: "@last_name", value: lastName },
-                { name: "@email", value: email }
-            ]
-        };
-        const { resources: existingPatients } = await container.items.query(existingPatientQuery).fetchAll();
-        if (existingPatients && existingPatients.length > 0) {
-            const details = {...existingPatients[0].original_json.original_json.details, ...data};
-            const existingPatient = existingPatients[0];
-            const merged = {
-                ...existingPatient,
-                original_json : {
-                    ...existingPatient.original_json,
-                    original_json: {
-                        details: {
-                            ...details
-                        }
-                    },
-                },
-                updated_at: new Date().toISOString()
-            };
-            const { resource: updatedPatient } = await container.items.upsert(merged);
-            return updatedPatient;
-        }
-        const id = await generateUniquePatientId(container);
-        const practice_id = Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;
-        const newPatient = {
-            id: `patient_${id}`,
-            patientID: id,
-            practiceID: practice_id,
-            original_json: {
-                id: `patient_${id}`,
-                patientID: id,
-                practiceID: practice_id,
-                original_json: {
-                    details: {
-                        patient_id: id,
-                        practice_id: practice_id,
-                        ...data,
-                        ssn: String(id),
-                    }
-                }
-            },
-            created_at: new Date().toISOString(),
-        };
-        const { resource } = await container.items.create(newPatient);
-        return resource;
-    } catch (error) {
-        console.log("Error creating patient:", error.message);
-        console.log("Stack:", error.stack);
-        throw new Error("Failed to create patient");
-    }
-}
-
-// Function to create a new patient in Seismic backend or merge with existing one
 async function createPatientSeismic(data) {
-    const database = client.database(process.env.COSMOS_DATABASE);
-    const container = database.container("patients");
-    const chatbotDatabase = client.database("seismic-chat-bot");
-    const chatbotContainer = chatbotDatabase.container("Patients");
-    try{
-        const firstName = (data.first_name || '').toLowerCase().trim();
-        const lastName = (data.last_name || '').toLowerCase().trim();
-        const email = (data.email || '').toLowerCase().trim();
-        ssn = data.ssn;
+  const database = client.database(process.env.COSMOS_DATABASE);
+  const container = database.container("patients");
 
-        const existingPatientQuery = {
-            query: "SELECT * FROM c WHERE LOWER(c.first_name) = @first_name AND LOWER(c.last_name) = @last_name AND c.ssn = @ssn",
-            parameters: [
-                { name: "@first_name", value: firstName },
-                { name: "@last_name", value: lastName },
-                { name: "@ssn", value: ssn }
-            ]
-        };
+  const ssn = data.ssn;
+  const id = await generatePatientId(
+    data.first_name || data.firstname || "",
+    data.last_name || data.lastname || "",
+    ssn
+  );
 
-        const { resources: existingPatients } = await container.items.query(existingPatientQuery).fetchAll();
-        if (existingPatients && existingPatients.length > 0) {
-            const existingPatient = existingPatients[0];
-            const merged = {
-                ...existingPatient,
-                ...data,
-                ssn: String(ssn),
-                updated_at: new Date().toISOString()
-            };
-            const { resource: updatedPatient } = await container.items.upsert(merged);
-            return updatedPatient;
-        }
+  const newPatient = {
+    id,
+    ...data,
+    ssn: String(ssn),
+    created_at: new Date().toISOString(),
+  };
 
-        const id = await generatePatientId(data.first_name, data.last_name, ssn);
-        const newPatient = {
-            id: id,
-            ...data,
-            ssn : String(ssn), 
-            created_at: new Date().toISOString(),
-        };
-        const { resource } = await container.items.create(newPatient);
-        return resource;
-    } catch (error) {
-        console.log("Detailed error in createPatientSeismic:", error.message);
-        console.log("Stack:", error.stack);
-        throw new Error("Failed to create patient");
-    }
+  const { resource } = await container.items.create(newPatient);
+  return resource;
 }
 
-// Function to create patient in both Chatbot and Seismic containers simultaneously
+/* ---------------- CREATE BOTH ---------------- */
+
 async function createPatientBoth(data) {
+  const chatbotPatient = await createPatient(data);
+  const patientID = chatbotPatient.patientID;
 
-  try {
-    const chatbotPatient = await createPatient(data);
-    const patientID =
-      chatbotPatient?.patientID ||
-      chatbotPatient?.original_json?.patientID ||
-      chatbotPatient?.original_json?.original_json?.details?.patient_id;
+  const seismicPatient = await createPatientSeismic({
+    ...data,
+    ssn: String(patientID),
+  });
 
-    if (!patientID) {
-      throw new Error("Failed to get patient ID from chatbot creation");
-    }
-
-    console.log("✅ Created in Chatbot DB with patientID:", patientID);
-
-    const seismicData = {
-      ...data,
-      ssn: String(patientID),
-    };
-
-    try {
-      const seismicPatient = await createPatientSeismic(seismicData);
-      return { chatbotPatient, seismicPatient };
-    } catch (error) {
-      console.error("⚠️ Seismic creation failed:", error.message);
-      return { chatbotPatient, seismicPatient: null, error: "Seismic creation failed" };
-    }
-
-  } catch (error) {
-    console.error("❌ Error in createPatientBoth:", error.message);
-    throw new Error("Failed to create patient in both systems");
-  }
+  return { chatbotPatient, seismicPatient };
 }
-
 
 module.exports = {
-    fetchAllPatients,
-    fetchPatientById,
-    createPatient,
-    fetchAllPatientsSeismic,
-    fetchPatientByIdSeismic,
-    createPatientSeismic,
-    createPatientBoth
+  fetchAllPatients,
+  fetchPatientById,
+  createPatient,
+  fetchAllPatientsSeismic,
+  fetchPatientByIdSeismic,
+  createPatientSeismic,
+  createPatientBoth
 };

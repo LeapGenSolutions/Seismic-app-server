@@ -65,6 +65,7 @@ router.post("/add/chat-bot", async (req, res) => {
     const newPatient = await createPatient(data);
     res.status(201).json(newPatient);
   } catch (err) {
+    console.log(err)
     res.status(500).json({ error: "Internal server error" });
   }
 });

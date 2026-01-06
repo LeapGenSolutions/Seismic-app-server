@@ -128,6 +128,75 @@ async function createPatient(data) {
   const database = client.database(databaseId);
   const container = database.container("Patients");
 
+  const firstName = (data?. firstname || data.first_name || '').toLowerCase().trim();
+        const lastName = (data?.lastname || data?.last_name || '').toLowerCase().trim();
+        const email = (data?.email || '').toLowerCase().trim();
+        const existingPatientQuery = {
+            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.firstname) = @first_name AND LOWER(c.original_json.original_json.details.lastname) = @last_name AND c.original_json.original_json.details.email = @email",
+            parameters: [
+                { name: "@first_name", value: firstName },
+                { name: "@last_name", value: lastName },
+                { name: "@email", value: email }
+            ]
+        };
+
+  const { resources } = await container.items.query(existingPatientQuery).fetchAll();
+  const existingPatient = resources?.[0];
+  if(existingPatient) {
+    const oj = existingPatient?.original_json?.original_json?.details;
+    const updatedDetails = {
+      firstname:  data?.firstname || data?.first_name || oj?.firstname || "" ,
+      middlename: data?.middlename || oj?.middlename ||  "",
+      lastname: data?.lastname || data?.last_name || oj?.lastname ||"",
+      dob: data?.dob || oj?.dob || "",
+      sex: data?.sex || data?.gender || oj?.sex || "",
+      address1: data?.address1 || oj?.address1 || "",
+      city: data?.city || oj?.city || "",
+      state: data?.state || oj?.state || "",
+      zip: data?.zip || oj?.zip || "",
+      countrycode: data?.countrycode || oj?.countrycode || "USA",
+      email: data?.email || oj?.email || "",
+      contactmobilephone: data?.contactmobilephone || oj?.contactmobilephone || data?.phone || "",
+      contacthomephone: data?.contacthomephone || oj?.contacthomephone || "",
+      contactpreference: data?.contactpreference || oj?.contactpreference || "",
+      ehr: data?.ehr || oj?.ehr || "",
+      mrn: data?.mrn || oj?.mrn || "",
+      ssn: oj?.ssn,
+      maritalstatus: data?.maritalstatus || oj?.maritalstatus || "",
+      employername: data?.employername || oj?.employername || "",
+      employerphone: data?.employerphone || oj?.employerphone || "",
+      preferredpronouns: data?.preferredpronouns || oj?.preferredpronouns || "",
+      portalaccessgiven: data?.portalaccessgiven || oj?.portalaccessgiven || "N",
+      portalsignatureonfile: !!data?.portalsignatureonfile || oj?.portalsignatureonfile,
+      portalstatus: data?.portalstatus ||  [
+        {
+            registeredyn: oj?.portalstatus?.[0]?.registeredyn || "Y",
+            status: oj?.portalstatus?.[0]?.status || "Active",
+            lastlogindate: new Date().toISOString().split("T")[0],
+            portalregistrationdate: oj?.portalstatus?.[0]?.portalregistrationdate || new Date().toISOString().split("T")[0]
+        }
+        ],
+      privacyinformationverified: !!data?.privacyinformationverified || oj?.privacyinformationverified,
+      race: data?.race || oj?.race || "",
+      ethnicitycode: data?.ethnicitycode || oj?.ethnicitycode || "",
+      language6392code: data?.language6392code || oj?.language6392code || "en",
+    }
+    const updatedPatient = {
+      id: existingPatient.id,
+      patientID: existingPatient.patientID,
+      practiceID: existingPatient.practiceID,
+      original_json: {
+        ...existingPatient?.original_json,
+        original_json: {
+          ...existingPatient?.original_json?.original_json,
+          details: updatedDetails
+        }
+      },
+    }
+    const { resource } = await container.items.upsert(updatedPatient);
+    return resource;
+  }
+
   const id = await generateUniquePatientId(container);
   const practice_id = Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;
 
@@ -143,30 +212,30 @@ async function createPatient(data) {
         patient_id: id,
         practice_id: practice_id,
         details: {
-          firstname: data.firstname || data.first_name || "",
-          middlename: data.middlename || "",
-          lastname: data.lastname || data.last_name || "",
-          dob: data.dob || "",
-          sex: data.sex || data.gender || "",
-          address1: data.address1 || "",
-          city: data.city || "",
-          state: data.state || "",
-          zip: data.zip || "",
-          countrycode: data.countrycode || "USA",
-          email: data.email || "",
-          contactmobilephone: data.contactmobilephone || data.phone || "",
-          contacthomephone: data.contacthomephone || "",
-          contactpreference: data.contactpreference || "",
-          ehr: data.ehr || "",
-          mrn: data.mrn || "",
+          firstname: data?.firstname || data?.first_name || "",
+          middlename: data?.middlename || "",
+          lastname: data?.lastname || data?.last_name || "",
+          dob: data?.dob || "",
+          sex: data?.sex || data?.gender || "",
+          address1: data?.address1 || "",
+          city: data?.city || "",
+          state: data?.state || "",
+          zip: data?.zip || "",
+          countrycode: data?.countrycode || "USA",
+          email: data?.email || "",
+          contactmobilephone: data?.contactmobilephone || data?.phone || "",
+          contacthomephone: data?.contacthomephone || "",
+          contactpreference: data?.contactpreference || "",
+          ehr: data?.ehr || "",
+          mrn: data?.mrn || "",
           ssn: String(id),
-          maritalstatus: data.maritalstatus || "",
-          employername: data.employername || "",
-          employerphone: data.employerphone || "",
-          preferredpronouns: data.preferredpronouns || "",
-          portalaccessgiven: data.portalaccessgiven || "N",
-          portalsignatureonfile: !!data.portalsignatureonfile,
-          portalstatus: data.portalstatus || [
+          maritalstatus: data?.maritalstatus || "",
+          employername: data?.employername || "",
+          employerphone: data?.employerphone || "",
+          preferredpronouns: data?.preferredpronouns || "",
+          portalaccessgiven: data?.portalaccessgiven || "N",
+          portalsignatureonfile: !!data?.portalsignatureonfile,
+          portalstatus: data?.portalstatus || [
             {
                 registeredyn: "Y",
                 status: "Active",
@@ -174,10 +243,10 @@ async function createPatient(data) {
                 portalregistrationdate: new Date().toISOString().split("T")[0]
             }
             ],
-          privacyinformationverified: !!data.privacyinformationverified,
-          race: data.race || "",
-          ethnicitycode: data.ethnicitycode || "",
-          language6392code: data.language6392code || "en",
+          privacyinformationverified: !!data?.privacyinformationverified,
+          race: data?.race || "",
+          ethnicitycode: data?.ethnicitycode || "",
+          language6392code: data?.language6392code || "en",
         }
       }
     },
@@ -211,12 +280,29 @@ async function createPatientSeismic(data) {
   const database = client.database(process.env.COSMOS_DATABASE);
   const container = database.container("patients");
 
-  const ssn = data.ssn;
+  const ssn = data?.ssn;
   const id = await generatePatientId(
-    data.first_name || data.firstname || "",
-    data.last_name || data.lastname || "",
+    data?.first_name || data?.firstname || "",
+    data?.last_name || data?.lastname || "",
     ssn
   );
+
+  const { resources } = await container.items.query({
+    query: "SELECT * FROM c WHERE c.id = @id",
+    parameters: [{ name: "@id", value: id }]
+  }).fetchAll();
+
+  
+
+  if (resources.length > 0) {
+    const updatedPatient = {
+      ...resources[0],
+      ...data,
+      ssn: String(ssn),
+    };
+    const { resource } = await container.items.upsert(updatedPatient);
+    return resource;
+  }
 
   const newPatient = {
     id,
@@ -237,6 +323,10 @@ async function createPatientBoth(data) {
 
   const seismicPatient = await createPatientSeismic({
     ...data,
+    first_name: data?.firstname || data?.first_name,
+    last_name: data?.lastname || data?.last_name,
+    firstname: undefined,
+    lastname: undefined,
     ssn: String(patientID),
   });
 

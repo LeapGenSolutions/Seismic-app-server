@@ -16,16 +16,27 @@ async function fetchBillingByAppointment(id, partitionKey) {
     }
 }
 
-async function patchBillingByAppointment(id, partitionKey, newBillingCode) {
+async function patchBillingByAppointment(id, partitionKey, data) {
     const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
     const container = database.container("Billing_Container");
     try {
+        const incomingValue = (data?.billing_codes ?? data?.engine_v1_gpt);
         const { resource: item } = await container.item(id, partitionKey).read();
-        const updatedItem = { ...item, "data": { "billing_codes": newBillingCode } };
-        await container.item(id, partitionKey).replace(updatedItem);
+        const hasEngineV1 = item.data?.engine_v1_gpt !== undefined;
+        const updatedItem = { ...item,
+            data : {
+                ...item.data,
+                ...(hasEngineV1
+                    ? { engine_v1_gpt: incomingValue }
+                    : { billing_codes: incomingValue }),
+                engine_v2_search:data.engine_v2_search ?? item.data.engine_v2_search
+            }
+        };
+        const { resource: replacedItem } = await container.item(id, partitionKey).replace(updatedItem);
+        return replacedItem
     } catch (err) {
         console.error(err);
-        throw new Error({ error: "Failed to update item" });
+        throw new Error("Failed to update item");
     }
 }
 

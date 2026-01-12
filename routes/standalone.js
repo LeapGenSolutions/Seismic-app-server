@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { verifyStandaloneAuth, registerStandaloneUser } = require("../services/standaloneService");
 const { verifyIdToken, generateJWT, extractUserInfo } = require("../services/tokenVerification");
-const { authenticateCIAM, requireRegistration } = require("../auth/ciamAuth");
+const { authenticateCIAM, requireRegistration } = require("../middleware/ciamAuth");
 
 
 

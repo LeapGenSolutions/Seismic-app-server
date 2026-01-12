@@ -147,6 +147,13 @@ router.post("/register", authenticateCIAM, async (req, res) => {
       });
     }
 
+    if (error.message === "NPI_DUPLICATE") {
+      return res.status(409).json({
+        error: "NPI already registered",
+        message: "An account with this NPI number already exists"
+      });
+    }
+
     res.status(500).json({ error: "Internal server error" });
   }
 });

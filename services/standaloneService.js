@@ -1,6 +1,19 @@
 const { getUsersContainer } = require("./cosmosClient");
 
 
+async function checkNPIDuplicate(npiNumber) {
+  const container = getUsersContainer();
+
+  const querySpec = {
+    query: "SELECT * FROM c WHERE c.npiNumber = @npiNumber",
+    parameters: [{ name: "@npiNumber", value: npiNumber }]
+  };
+
+  const { resources } = await container.items.query(querySpec).fetchAll();
+  return resources.length > 0;
+}
+
+
 async function verifyStandaloneAuth(email, userId) {
 
   const container = getUsersContainer();
@@ -76,6 +89,12 @@ async function verifyStandaloneAuth(email, userId) {
 async function registerStandaloneUser(data) {
   const container = getUsersContainer();
 
+  // Check for duplicate NPI
+  const npiExists = await checkNPIDuplicate(data.npiNumber);
+  if (npiExists) {
+    throw new Error("NPI_DUPLICATE");
+  }
+
   // Cross-partition query to fetch existing user record by userId
   const querySpec = {
     query: "SELECT * FROM c WHERE c.userId = @userId",
@@ -148,4 +167,5 @@ async function registerStandaloneUser(data) {
 module.exports = {
   verifyStandaloneAuth,
   registerStandaloneUser,
+  checkNPIDuplicate
 };

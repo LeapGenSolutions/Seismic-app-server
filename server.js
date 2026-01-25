@@ -1,6 +1,6 @@
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
-const { config } = require("dotenv");
 const cors = require("cors");
 const {
   fetchEmailFromCallHistory,
@@ -27,7 +27,6 @@ const upToDateRouter = require("./routes/upToDate");
 const standaloneRouter = require("./routes/standalone");
 const npiRouter = require("./routes/npi");
 
-config();
 
 const PORT = process.env.PORT || 8080;
 

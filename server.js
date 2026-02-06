@@ -23,9 +23,9 @@ const callHistoryRouter = require("./routes/callHistory");
 const doctorNotesRouter = require("./routes/doctorNotes");
 const emotionalConnectRouter = require("./routes/emotionalConnect");
 const postCallFeedbackRouter = require("./routes/postCallFeedback");
-const upToDateRouter = require("./routes/upToDate");
 const standaloneRouter = require("./routes/standalone");
 const npiRouter = require("./routes/npi");
+const athenaRouter = require("./routes/athena");
 
 
 const PORT = process.env.PORT || 8080;
@@ -59,8 +59,7 @@ app.use("/api/call-history", callHistoryRouter);
 app.use("/api/doctor-notes", doctorNotesRouter);
 app.use("/api/emotional-connect", emotionalConnectRouter);
 app.use("/api/post-call-feedback", postCallFeedbackRouter);
-app.use("/api/uptodate", upToDateRouter);
-
+app.use("/api/athena", athenaRouter);
 
 app.use("/api/standalone", standaloneRouter);
 app.use("/api/verify-npi",npiRouter)

@@ -39,6 +39,7 @@ async function fetchAppointmentsByEmail(email) {
                 d.type,
                 d.first_name,
                 d.last_name,
+                d.middle_name,
                 d.full_name,
                 d.dob,
                 d.gender,
@@ -82,6 +83,7 @@ async function fetchAppointmentsByEmails(emails) {
                   d.type,
                   d.first_name,
                   d.last_name,
+                  d.middle_name,
                   d.full_name,
                   d.dob,
                   d.gender,
@@ -127,9 +129,11 @@ async function createAppointment(userId, data) {
     type: "appointment",
     first_name: data.first_name,
     last_name: data.last_name,
-    full_name: data.full_name,
+    middle_name: data?.middle_name || data?.middlename || "",
+    full_name: data.full_name || `${data.first_name} ${data.last_name}`,
     dob: data.dob,
     gender: data.gender,
+    mode: data?.mode || data?.appointment_mode || "in-person",
     ssn: String(patientId),
     doctor_id: doctorId,
     doctor_name: data.doctor_name,
@@ -303,8 +307,11 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
     }
     if(updatedData.appointment_date !== updatedData.original_appointment_date){
       await deleteAppointment(user_id, appointmentId, updatedData.original_appointment_date);
-      await createAppointment(user_id, updatedAppointment);
+      await createAppointment(user_id, {...updatedAppointment, status: "rescheduled"});
     } else {
+      if(currentAppointment.time !== updatedData.time){
+        updatedAppointment.status = "rescheduled";
+      }
       const updatedAppointments = appointments.map(app => {
         if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
           return { ...app, ...updatedAppointment };

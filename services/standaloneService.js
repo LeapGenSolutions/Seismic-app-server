@@ -10,6 +10,7 @@ async function checkNPIDuplicate(npiNumber) {
   };
 
   const { resources } = await container.items.query(querySpec).fetchAll();
+  console.log(`Checked for NPI duplicate: ${npiNumber}, found ${resources} records`);
   return resources.length > 0;
 }
 

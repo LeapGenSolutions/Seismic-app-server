@@ -57,7 +57,13 @@ async function fetchAppointmentsByEmail(email) {
                 d.phone,
                 d.insurance_verified,
                 d.patient_id,
-                d.practice_id
+                d.practice_id,
+                d.athena_provider_id,
+                d.athena_patient_id,
+                d.athena_encounter_id,
+                d.athena_departmentid,
+                d.appointment_date,
+                d.athena_practice_id
             FROM c
             JOIN d IN c.data
             WHERE lower(d.doctor_email) = @doctorEmail`,
@@ -101,7 +107,12 @@ async function fetchAppointmentsByEmails(emails) {
                   d.phone,
                   d.insurance_verified,
                   d.patient_id,
-                  d.practice_id
+                  d.practice_id,
+                  d.athena_provider_id,
+                  d.athena_patient_id,
+                  d.athena_encounter_id,
+                  d.athena_departmentid,
+                  d.athena_practice_id
               FROM c
               JOIN d IN c.data 
               WHERE lower(d.doctor_email) IN (${emailParams.join(", ")})`,

@@ -26,9 +26,11 @@ const postCallFeedbackRouter = require("./routes/postCallFeedback");
 const standaloneRouter = require("./routes/standalone");
 const npiRouter = require("./routes/npi");
 const athenaRouter = require("./routes/athena");
+const { initTelemetry } = require("./services/telemetryService");
 
 
 const PORT = process.env.PORT || 8080;
+initTelemetry();
 
 const app = express();
 // const allowedOrigin = process.env.CORS_ORIGIN_BASE_URL || "https://victorious-mushroom-08b7e7d0f.4.azurestaticapps.net"; // set this in.env
@@ -203,4 +205,3 @@ app.post("/webhook", async (req, res) => {
 httpServer.listen(PORT, () =>
   console.log(`server is running on port: ${PORT}`)
 );
-

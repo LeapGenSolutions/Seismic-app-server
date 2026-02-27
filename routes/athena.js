@@ -6,7 +6,8 @@ const {
   putPhysicalExam,
   putHPI,
   putReviewOfSystems,
-  putAssessment
+  putAssessment,
+  postAll
 } = require("../services/athenaService");
 
 
@@ -85,6 +86,23 @@ router.put("/:email/encounters/:appointmentId/assessment", async (req, res) => {
     const { note, practiceID } = req.body;
     
     const result = await putAssessment(
+      practiceID,
+      appointmentId,
+      note
+    );
+
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/:email/encounters/:appointmentId/all", async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { note, practiceID } = req.body;
+
+    const result = await postAll(
       practiceID,
       appointmentId,
       note

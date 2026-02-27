@@ -34,8 +34,8 @@ const clientId = process.env.ATHENA_CLIENT_ID;
 }
 
 
-async function postVisitReason(practiceId, encounterId, noteText) {
-    const token = await getToken();
+async function postVisitReason(practiceId, encounterId, noteText, athenaToken = null) {
+    const token = athenaToken || await getToken();
     const body = new URLSearchParams({
         notetext: noteText,
         appendtext: "false"
@@ -61,8 +61,8 @@ async function postVisitReason(practiceId, encounterId, noteText) {
 }
 
 
-async function putPhysicalExam(practiceId, encounterId, note) {
-    const token = await getToken();
+async function putPhysicalExam(practiceId, encounterId, note, athenaToken = null) {
+    const token = athenaToken || await getToken();
 
     const body = new URLSearchParams({
         sectionnote: note,
@@ -89,9 +89,9 @@ async function putPhysicalExam(practiceId, encounterId, note) {
 }
 
 
-async function putHPI(practiceId, encounterId, noteText) {
+async function putHPI(practiceId, encounterId, noteText, athenaToken = null) {
     try {
-        const token = await getToken();
+        const token = athenaToken || await getToken();
 
         const body = new URLSearchParams({
             sectionnote: noteText,
@@ -122,9 +122,9 @@ async function putHPI(practiceId, encounterId, noteText) {
 }
 
 
-async function putReviewOfSystems(practiceId, encounterId, noteText) {
+async function putReviewOfSystems(practiceId, encounterId, noteText, athenaToken = null) {
     try {
-        const token = await getToken();
+        const token = athenaToken || await getToken();
 
         const body = new URLSearchParams({
             sectionnote: noteText,
@@ -155,9 +155,9 @@ async function putReviewOfSystems(practiceId, encounterId, noteText) {
 }
 
 
-async function putAssessment(practiceId, encounterId, noteText) {
+async function putAssessment(practiceId, encounterId, noteText, athenaToken = null) {
     try {
-        const token = await getToken();
+        const token = athenaToken || await getToken();
 
         const body = new URLSearchParams({
             assessmenttext: noteText,
@@ -187,5 +187,33 @@ async function putAssessment(practiceId, encounterId, noteText) {
     }
 }
 
+async function postAll(practiceId, encounterId, noteText) {
+    try {
+        const token = await getToken();
 
-module.exports = { postVisitReason, putPhysicalExam, putHPI, putReviewOfSystems, putAssessment };
+        const reasonMatch = noteText.match(/Reason for Visit -([\s\S]*?)(?=\n\nSubjective -)/);
+        const subjectiveMatch = noteText.match(/Subjective -([\s\S]*?)(?=\n\nFamily history discussed)/);
+        const rosMatch = noteText.match(/Review of Systems(?:\s*\(ROS\))?:\s*([\s\S]*?)(?=\n\nObjective -)/);
+        // check
+        const objectiveMatch = noteText.match(/Objective -([\s\S]*?)(?=\n\nAssessment and Plan -)/);
+        const assessmentPlanMatch = noteText.match(/Assessment and Plan -([\s\S]*?)(?=\r?\n\r?\n\$procedure_notes|\r?\n\$procedure_notes|$)/i);
+        const reasonMarchResponse = reasonMatch ? await postVisitReason(practiceId, encounterId, reasonMatch[1].trim(), token) : null;
+        const subjectiveResponse = subjectiveMatch ? await putHPI(practiceId, encounterId, subjectiveMatch[1].trim(), token) : null;
+        const rosResponse = rosMatch ? await putReviewOfSystems(practiceId, encounterId, rosMatch[1].trim(), token) : null;
+        const objectiveResponse = objectiveMatch ? await putPhysicalExam(practiceId, encounterId, objectiveMatch[1].trim(), token) : null;
+        const assessmentPlanResponse = assessmentPlanMatch ? await putAssessment(practiceId, encounterId, assessmentPlanMatch[1].trim(), token) : null;
+        const data = {
+            reason: reasonMarchResponse.success,
+            subjective: false,
+            ros: rosResponse.success,
+            objective: objectiveResponse.success,
+            assessmentPlan: assessmentPlanResponse.success
+        }
+        return data;
+    } catch (error) {
+        console.error("Error posting all sections:", error.message);
+    }
+}
+
+
+module.exports = { postVisitReason, putPhysicalExam, putHPI, putReviewOfSystems, putAssessment, postAll};

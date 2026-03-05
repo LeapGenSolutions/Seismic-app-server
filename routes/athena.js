@@ -9,8 +9,7 @@ const {
   putAssessment,
   postAll
 } = require("../services/athenaService");
-
-
+const { trackAppointmentAudit } = require("../services/telemetryService");
 
 router.post("/:email/encounters/:appointmentId/visit-reason", async (req, res) => {
   try {
@@ -23,8 +22,23 @@ router.post("/:email/encounters/:appointmentId/visit-reason", async (req, res) =
       note
     );
 
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "success",
+      section: "visit-reason",
+      appointment_id: appointmentId,
+      performed_by: req.params.email
+    });
     res.status(200).json(result);
   } catch (error) {
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "failed",
+      section: "visit-reason",
+      appointment_id: req.params.appointmentId,
+      performed_by: req.params.email,
+      error_message: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -40,8 +54,23 @@ router.put("/:email/encounters/:appointmentId/physical-exam", async (req, res) =
       note
     );
 
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "success",
+      section: "physical-exam",
+      appointment_id: appointmentId,
+      performed_by: req.params.email
+    });
     res.status(200).json(result);
   } catch (error) {
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "failed",
+      section: "physical-exam",
+      appointment_id: req.params.appointmentId,
+      performed_by: req.params.email,
+      error_message: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -57,8 +86,23 @@ router.put("/:email/encounters/:appointmentId/hpi", async (req, res) => {
       note
     );
 
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "success",
+      section: "hpi",
+      appointment_id: appointmentId,
+      performed_by: req.params.email
+    });
     res.status(200).json(result);
   } catch (error) {
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "failed",
+      section: "hpi",
+      appointment_id: req.params.appointmentId,
+      performed_by: req.params.email,
+      error_message: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -74,8 +118,23 @@ router.put("/:email/encounters/:appointmentId/review-of-systems", async (req, re
       note
     );
 
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "success",
+      section: "review-of-systems",
+      appointment_id: appointmentId,
+      performed_by: req.params.email
+    });
     res.status(200).json(result);
   } catch (error) {
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "failed",
+      section: "review-of-systems",
+      appointment_id: req.params.appointmentId,
+      performed_by: req.params.email,
+      error_message: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -84,15 +143,30 @@ router.put("/:email/encounters/:appointmentId/assessment", async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { note, practiceID } = req.body;
-    
+
     const result = await putAssessment(
       practiceID,
       appointmentId,
       note
     );
 
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "success",
+      section: "assessment",
+      appointment_id: appointmentId,
+      performed_by: req.params.email
+    });
     res.status(200).json(result);
   } catch (error) {
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "failed",
+      section: "assessment",
+      appointment_id: req.params.appointmentId,
+      performed_by: req.params.email,
+      error_message: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -108,8 +182,23 @@ router.post("/:email/encounters/:appointmentId/all", async (req, res) => {
       note
     );
 
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "success",
+      section: "all",
+      appointment_id: appointmentId,
+      performed_by: req.params.email
+    });
     res.status(200).json(result);
   } catch (error) {
+    trackAppointmentAudit("soap.audit", {
+      action: "post_to_athena",
+      status: "failed",
+      section: "all",
+      appointment_id: req.params.appointmentId,
+      performed_by: req.params.email,
+      error_message: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });

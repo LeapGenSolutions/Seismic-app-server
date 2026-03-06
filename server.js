@@ -26,6 +26,7 @@ const postCallFeedbackRouter = require("./routes/postCallFeedback");
 const standaloneRouter = require("./routes/standalone");
 const npiRouter = require("./routes/npi");
 const athenaRouter = require("./routes/athena");
+const orderRouter = require("./routes/orders");
 const { initTelemetry } = require("./services/telemetryService");
 
 
@@ -62,6 +63,7 @@ app.use("/api/doctor-notes", doctorNotesRouter);
 app.use("/api/emotional-connect", emotionalConnectRouter);
 app.use("/api/post-call-feedback", postCallFeedbackRouter);
 app.use("/api/athena", athenaRouter);
+app.use("/api/orders", orderRouter);
 
 app.use("/api/standalone", standaloneRouter);
 app.use("/api/verify-npi",npiRouter)

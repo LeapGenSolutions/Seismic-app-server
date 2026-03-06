@@ -1,5 +1,17 @@
 const { getUsersContainer } = require("./cosmosClient");
 
+async function checkNPIDuplicate(npiNumber) {
+  const container = getUsersContainer();
+
+  const querySpec = {
+    query: "SELECT * FROM c WHERE c.npiNumber = @npiNumber",
+    parameters: [{ name: "@npiNumber", value: npiNumber }]
+  };
+
+  const { resources } = await container.items.query(querySpec).fetchAll();
+  return resources.length > 0;
+}
+
 
 async function checkNPIDuplicate(npiNumber) {
   const container = getUsersContainer();

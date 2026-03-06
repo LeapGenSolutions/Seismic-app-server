@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { start } = require("repl");
 const { blob } = require("stream/consumers");
 const { createPatientBoth } = require("./patientsService");
+const { trackAppointmentAudit } = require("./telemetryService");
 require("dotenv").config();
 
 const endpoint = process.env.COSMOS_ENDPOINT;
@@ -39,6 +40,7 @@ async function fetchAppointmentsByEmail(email) {
                 d.type,
                 d.first_name,
                 d.last_name,
+                d.middle_name,
                 d.full_name,
                 d.dob,
                 d.gender,
@@ -56,7 +58,13 @@ async function fetchAppointmentsByEmail(email) {
                 d.phone,
                 d.insurance_verified,
                 d.patient_id,
-                d.practice_id
+                d.practice_id,
+                d.athena_provider_id,
+                d.athena_patient_id,
+                d.athena_encounter_id,
+                d.athena_departmentid,
+                d.appointment_date,
+                d.athena_practice_id
             FROM c
             JOIN d IN c.data
             WHERE lower(d.doctor_email) = @doctorEmail`,
@@ -82,6 +90,7 @@ async function fetchAppointmentsByEmails(emails) {
                   d.type,
                   d.first_name,
                   d.last_name,
+                  d.middle_name,
                   d.full_name,
                   d.dob,
                   d.gender,
@@ -99,7 +108,12 @@ async function fetchAppointmentsByEmails(emails) {
                   d.phone,
                   d.insurance_verified,
                   d.patient_id,
-                  d.practice_id
+                  d.practice_id,
+                  d.athena_provider_id,
+                  d.athena_patient_id,
+                  d.athena_encounter_id,
+                  d.athena_departmentid,
+                  d.athena_practice_id
               FROM c
               JOIN d IN c.data 
               WHERE lower(d.doctor_email) IN (${emailParams.join(", ")})`,
@@ -114,7 +128,7 @@ async function fetchAppointmentsByEmails(emails) {
   }
 }
 
-async function createAppointment(userId, data) {
+async function createAppointment(userId, data, auditMeta = {}) {
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (userId || '').toLowerCase();
@@ -127,9 +141,11 @@ async function createAppointment(userId, data) {
     type: "appointment",
     first_name: data.first_name,
     last_name: data.last_name,
-    full_name: data.full_name,
+    middle_name: data?.middle_name || data?.middlename || "",
+    full_name: data.full_name || `${data.first_name} ${data.last_name}`,
     dob: data.dob,
     gender: data.gender,
+    mode: data?.mode || data?.appointment_mode || "in-person",
     ssn: String(patientId),
     doctor_id: doctorId,
     doctor_name: data.doctor_name,
@@ -167,6 +183,21 @@ async function createAppointment(userId, data) {
         data: [newAppointment]
       }
       const { resource: createdItem } = await container.items.create(item);
+      if (!auditMeta.suppressAudit) {
+        trackAppointmentAudit("appointment.audit", {
+          action: "add",
+          status: "success",
+          performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+          doctor_email: newAppointment.doctor_email,
+          doctor_name: newAppointment.doctor_name,
+          doctor_id: newAppointment.doctor_id,
+          appointment_id: newAppointment.id,
+          appointment_date: newAppointment.appointment_date,
+          appointment_time: newAppointment.time,
+          route: auditMeta.route,
+          method: auditMeta.method
+        });
+      }
       return createdItem;
     }
 
@@ -175,8 +206,39 @@ async function createAppointment(userId, data) {
       : [newAppointment];
 
     const { resource: createdItem } = await container.items.upsert({ id: date, data: updatedData });
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "add",
+        status: "success",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: newAppointment.doctor_email,
+        doctor_name: newAppointment.doctor_name,
+        doctor_id: newAppointment.doctor_id,
+        appointment_id: newAppointment.id,
+        appointment_date: newAppointment.appointment_date,
+        appointment_time: newAppointment.time,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
     return createdItem;
   } catch (error) {
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "add",
+        status: "failed",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: normalizedDoctorEmail,
+        doctor_name: data?.doctor_name,
+        doctor_id: data?.doctor_id,
+        appointment_id: data?.id,
+        appointment_date: data?.appointment_date,
+        appointment_time: data?.time,
+        error_message: error?.message,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
     console.error("Error creating custom appointment:", error);
     throw error;
   }
@@ -193,7 +255,7 @@ const createBulkAppointments = async (file, data) => {
       "env": "dev",
       "file_name": blobName,
       "doctor_name": data.doctor_name,
-      "doctor_email": data.userId,
+      "doctor_email": data.doctor_email || data.userId,
       "specialization": data.specialization,
       "practice_id": data.practice_id,
       "doctor_id": data.doctor_id
@@ -231,6 +293,7 @@ const getToken = async () => {
 
 const startJob = async(data) => {
   try{
+    console.log("starting job with data: ", data);
     const response = await fetch(`${process.env.DATABRICKS_WORKSPACE_URL}/api/2.1/jobs/run-now`, {
         method: 'POST',
         headers: {
@@ -252,7 +315,7 @@ const startJob = async(data) => {
   }
 }
 
-const deleteAppointment = async (user_id, appointmentId, date) => {
+const deleteAppointment = async (user_id, appointmentId, date, auditMeta = {}) => {
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (user_id || '').toLowerCase();
@@ -267,15 +330,44 @@ const deleteAppointment = async (user_id, appointmentId, date) => {
       throw new Error("No appointments found for today");
     }
     const todaysAppointments = results[0].data;
+    const deletedAppointment = todaysAppointments.find(app => app.id === appointmentId && app.doctor_email === normalizedDoctorEmail);
     const filteredAppointments = todaysAppointments.filter(app => !(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail));
     await container.items.upsert({ id: today, data: filteredAppointments });
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "delete",
+        status: "success",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: deletedAppointment?.doctor_email || normalizedDoctorEmail,
+        doctor_name: deletedAppointment?.doctor_name,
+        doctor_id: deletedAppointment?.doctor_id,
+        appointment_id: appointmentId,
+        appointment_date: deletedAppointment?.appointment_date || today,
+        appointment_time: deletedAppointment?.time,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
   }catch(err){
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "delete",
+        status: "failed",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: normalizedDoctorEmail,
+        appointment_id: appointmentId,
+        appointment_date: date,
+        error_message: err?.message,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
     console.error("error deleting appointment: ", err);
     throw err;
   }
 };
 
-const updateAppointment = async (user_id, appointmentId, updatedData) => {
+const updateAppointment = async (user_id, appointmentId, updatedData, auditMeta = {}) => {
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (user_id || '').toLowerCase();
@@ -302,9 +394,18 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
       status: "scheduled"
     }
     if(updatedData.appointment_date !== updatedData.original_appointment_date){
-      await deleteAppointment(user_id, appointmentId, updatedData.original_appointment_date);
-      await createAppointment(user_id, updatedAppointment);
+      await deleteAppointment(user_id, appointmentId, updatedData.original_appointment_date, {
+        ...auditMeta,
+        suppressAudit: true
+      });
+      await createAppointment(user_id, {...updatedAppointment, status: "rescheduled"}, {
+        ...auditMeta,
+        suppressAudit: true
+      });
     } else {
+      if(currentAppointment.time !== updatedData.time){
+        updatedAppointment.status = "rescheduled";
+      }
       const updatedAppointments = appointments.map(app => {
         if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
           return { ...app, ...updatedAppointment };
@@ -312,6 +413,22 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
         return app;
       });
       await container.items.upsert({ id: date, data: updatedAppointments });
+    }
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "edit",
+        status: "success",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: updatedAppointment?.doctor_email || normalizedDoctorEmail,
+        doctor_name: updatedAppointment?.doctor_name,
+        doctor_id: updatedAppointment?.doctor_id,
+        appointment_id: appointmentId,
+        appointment_date: updatedAppointment?.appointment_date,
+        appointment_time: updatedAppointment?.time,
+        previous_appointment_date: updatedData?.original_appointment_date,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
     }
     await createPatientBoth({
       first_name: updatedAppointment.first_name,
@@ -326,12 +443,25 @@ const updateAppointment = async (user_id, appointmentId, updatedData) => {
     });
     return updatedAppointment;
   }catch(err){
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "edit",
+        status: "failed",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: normalizedDoctorEmail,
+        appointment_id: appointmentId,
+        appointment_date: updatedData?.appointment_date || updatedData?.original_appointment_date,
+        error_message: err?.message,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
     console.error("error updating appointment: ", err);
     throw err;
   }
 }
 
-const cancelAppointment = async(userId, appId, reason, date) => {
+const cancelAppointment = async(userId, appId, reason, date, auditMeta = {}) => {
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (userId || '').toLowerCase();
@@ -361,7 +491,37 @@ const cancelAppointment = async(userId, appId, reason, date) => {
       return app;
     });
     await container.items.upsert({ id: today, data: updatedAppointments });
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "cancel",
+        status: "success",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: updatedAppointment?.doctor_email || normalizedDoctorEmail,
+        doctor_name: updatedAppointment?.doctor_name,
+        doctor_id: updatedAppointment?.doctor_id,
+        appointment_id: appId,
+        appointment_date: updatedAppointment?.appointment_date || today,
+        appointment_time: updatedAppointment?.time,
+        cancelled_reason: reason,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
   } catch (err) {
+    if (!auditMeta.suppressAudit) {
+      trackAppointmentAudit("appointment.audit", {
+        action: "cancel",
+        status: "failed",
+        performed_by: auditMeta.performedBy || normalizedDoctorEmail,
+        doctor_email: normalizedDoctorEmail,
+        appointment_id: appId,
+        appointment_date: date,
+        cancelled_reason: reason,
+        error_message: err?.message,
+        route: auditMeta.route,
+        method: auditMeta.method
+      });
+    }
     console.error("error cancelling appointment: ", err);
     throw err;
   }

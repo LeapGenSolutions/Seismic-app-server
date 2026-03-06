@@ -66,6 +66,7 @@ async function fetchAllPatients() {
         practice_id: oj.practiceID,
         firstname: d.first_name || "",
         lastname: d.last_name || "",
+        middlename: d.middle_name || d.middlename || "",
         dob: d.dob || "",
         sex: d.gender || "",
         email: d.email || "",
@@ -111,6 +112,7 @@ async function fetchPatientById(patient_id) {
       practice_id: oj.practiceID,
       firstname: d.first_name || "",
       lastname: d.last_name || "",
+      middlename: d.middle_name || d.middlename || "",
       dob: d.dob || "",
       sex: d.gender || "",
       email: d.email || "",
@@ -146,7 +148,7 @@ async function createPatient(data) {
     const oj = existingPatient?.original_json?.original_json?.details;
     const updatedDetails = {
       firstname:  data?.firstname || data?.first_name || oj?.firstname || "" ,
-      middlename: data?.middlename || oj?.middlename ||  "",
+      middlename: data?.middlename || data?.middle_name || oj?.middlename || "",
       lastname: data?.lastname || data?.last_name || oj?.lastname ||"",
       dob: data?.dob || oj?.dob || "",
       sex: data?.sex || data?.gender || oj?.sex || "",
@@ -213,7 +215,7 @@ async function createPatient(data) {
         practice_id: practice_id,
         details: {
           firstname: data?.firstname || data?.first_name || "",
-          middlename: data?.middlename || "",
+          middlename: data?.middlename || data?.middle_name || "",
           lastname: data?.lastname || data?.last_name || "",
           dob: data?.dob || "",
           sex: data?.sex || data?.gender || "",

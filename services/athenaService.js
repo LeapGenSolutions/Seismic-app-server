@@ -204,7 +204,7 @@ async function postAll(practiceId, encounterId, noteText) {
         const assessmentPlanResponse = assessmentPlanMatch ? await putAssessment(practiceId, encounterId, assessmentPlanMatch[1].trim(), token) : null;
         const data = {
             reason: reasonMarchResponse.success,
-            subjective: false,
+            subjective: subjectiveResponse.success,
             ros: rosResponse.success,
             objective: objectiveResponse.success,
             assessmentPlan: assessmentPlanResponse.success

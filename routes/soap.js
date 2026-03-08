@@ -21,14 +21,65 @@ router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const partitionKey = req.query.username;
-    const updatedSoapNotes = req.body.soap_notes;
+    const raw = req.body && req.body.soap_notes;
+
     if (!partitionKey) {
       return res.status(400).json({ error: "partitionKey query param is required" });
     }
-    if (!updatedSoapNotes) {
-      return res.status(400).json({ error: "soap_notes in body is required" });
+    if (!raw || typeof raw !== "string") {
+      return res.status(400).json({ error: "soap_notes in body is required and must be a string" });
     }
-    await patchSoapNotesByAppointment(id, partitionKey, updatedSoapNotes);
+
+    const extractSection = (text, marker) => {
+      const re = new RegExp(`\\${marker}\\s*-\\s*([\\s\\S]*?)(?=(\\$soap_notes\\s*-|\\$procedure_notes\\s*-|\\$orders\\s*-|$))`, "i");
+      const m = text.match(re);
+      return m ? m[1].trim() : "";
+    };
+
+    const extractOrdersJson = (text) => {
+      const ordersMarker = text.search(/\$orders\s*-/i);
+      if (ordersMarker === -1) return null;
+      const braceStart = text.indexOf("{", ordersMarker);
+      if (braceStart === -1) return null;
+      let i = braceStart;
+      let depth = 0;
+      for (; i < text.length; i++) {
+        if (text[i] === "{") depth++;
+        else if (text[i] === "}") {
+          depth--;
+          if (depth === 0) {
+            const jsonStr = text.slice(braceStart, i + 1);
+            try {
+              return JSON.parse(jsonStr);
+            } catch (e) {
+              return null;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const soapNotesSection = extractSection(raw, "$soap_notes");
+    const procedureNotesSection = extractSection(raw, "$procedure_notes");
+    const ordersObj = extractOrdersJson(raw);
+
+    // Normalize orders into an array. incoming payload may be { orders: [...], confirmed: true }
+    let ordersArray = null;
+    if (ordersObj) {
+      if (Array.isArray(ordersObj)) ordersArray = ordersObj;
+      else if (Array.isArray(ordersObj.orders)) ordersArray = ordersObj.orders;
+      else if (ordersObj.orders && typeof ordersObj.orders === 'object') ordersArray = [ordersObj.orders];
+      else ordersArray = null;
+    }
+
+    const updatedSoap = {
+      soapNotes: soapNotesSection || null,
+      procedureNotes: procedureNotesSection || null,
+      orders: ordersArray
+    };
+
+    await patchSoapNotesByAppointment(id, partitionKey, updatedSoap);
     trackAppointmentAudit("soap.audit", {
       action: "save",
       status: "success",

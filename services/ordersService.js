@@ -6,26 +6,13 @@ const endpoint = process.env.COSMOS_ENDPOINT;
 const key = process.env.COSMOS_KEY;
 const client = new CosmosClient({ endpoint, key });
 
-async function patchOrdersByAppointment(id, partitionKey, data) {
-    const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
-    const container = database.container("Billing_Container");
-    try {
-        const { resource: item } = await container.item(id, partitionKey).read();
-        const updatedItem = { ...item, orders: data.orders };
-        const { resource: replacedItem } = await container.item(id, partitionKey).replace(updatedItem);
-        return replacedItem
-    } catch (err) {
-        console.error(err);
-        throw new Error("Failed to update item");
-    }
-};
-
 async function fetchOrdersdiagnoses(practiceId, encounterId, snomedcode) {
     try{
         const token = await getToken();
         const body = new URLSearchParams({
             snomedcode
         });
+        console.log("Fetching diagnoses with body:", body.toString(), practiceId, encounterId);
         const response = await fetch(
             `${process.env.ATHENA_BASE_URL}/v1/${practiceId}/chart/encounter/${encounterId}/diagnoses`,
             {
@@ -40,7 +27,6 @@ async function fetchOrdersdiagnoses(practiceId, encounterId, snomedcode) {
 
         if (!response.ok) {
             const errorText = await response.json();
-            console.log("Error response from Athena API:", errorText);
             if(response.status === 400 && errorText.detailedmessage === "Diagnosis with same snomed code already present in encounter.") {
                 return { message: "Diagnosis with same snomed code already present in encounter." };
             }

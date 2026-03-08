@@ -331,8 +331,7 @@ async function postOrdersDME(practiceId, encounterId, data) {
 };
 
 
-module.exports = { 
-    patchOrdersByAppointment,
+module.exports = {
     postOrdersReferral,
     postOrdersVaccine,
     postOrdersProcedure,

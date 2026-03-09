@@ -6,13 +6,11 @@ const endpoint = process.env.COSMOS_ENDPOINT;
 const key = process.env.COSMOS_KEY;
 const client = new CosmosClient({ endpoint, key });
 
-async function fetchOrdersdiagnoses(practiceId, encounterId, snomedcode) {
-    try{
-        const token = await getToken();
+async function fetchOrdersdiagnoses(practiceId, encounterId, snomedcode, token) {
+    try{;
         const body = new URLSearchParams({
             snomedcode
         });
-        console.log("Fetching diagnoses with body:", body.toString(), practiceId, encounterId);
         const response = await fetch(
             `${process.env.ATHENA_BASE_URL}/v1/${practiceId}/chart/encounter/${encounterId}/diagnoses`,
             {
@@ -40,10 +38,10 @@ async function fetchOrdersdiagnoses(practiceId, encounterId, snomedcode) {
     }   
 }
 
-async function postOrdersImaging(practiceId, encounterId, data) {
+async function postOrdersImaging(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -72,10 +70,10 @@ async function postOrdersImaging(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersLab(practiceId, encounterId, data) {
+async function postOrdersLab(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -104,10 +102,10 @@ async function postOrdersLab(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersOther(practiceId, encounterId, data) {
+async function postOrdersOther(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -136,10 +134,10 @@ async function postOrdersOther(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersPatientInfo(practiceId, encounterId, data) {
+async function postOrdersPatientInfo(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -170,10 +168,10 @@ async function postOrdersPatientInfo(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersPrescription(practiceId, encounterId, data) {
+async function postOrdersPrescription(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -202,10 +200,10 @@ async function postOrdersPrescription(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersProcedure(practiceId, encounterId, data) {
+async function postOrdersProcedure(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -234,10 +232,10 @@ async function postOrdersProcedure(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersReferral(practiceId, encounterId, data) {
+async function postOrdersReferral(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -266,10 +264,10 @@ async function postOrdersReferral(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersVaccine(practiceId, encounterId, data) {
+async function postOrdersVaccine(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -298,10 +296,10 @@ async function postOrdersVaccine(practiceId, encounterId, data) {
     }
 };
 
-async function postOrdersDME(practiceId, encounterId, data) {
+async function postOrdersDME(practiceId, encounterId, data, Token) {
     try{
-        const token = await getToken();
-        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code);
+        token = Token || await getToken();
+        await fetchOrdersdiagnoses(practiceId, encounterId, data.snomed_code, token);
         const body = new URLSearchParams({
             diagnosissnomedcode : data.snomed_code,
             ordertypeid : data.selected_order_id,
@@ -330,6 +328,66 @@ async function postOrdersDME(practiceId, encounterId, data) {
     }
 };
 
+async function postOrdersAll(practiceId, encounterId, orders) {
+    const result = {};
+
+    let token;
+    try {
+        token = await getToken();
+    } catch (err) {
+        console.error('Error retrieving token:', err.message);
+        for (const order of orders) {
+            const key = order && (order.clinical_intent || order.order_type) ? (order.clinical_intent || order.order_type) : 'unknown';
+            result[key] = { success: false, error: `Token retrieval failed: ${err.message}` };
+        }
+        return result;
+    }
+
+    for (const order of orders) {
+        const key = order && (order.clinical_intent || order.order_type) ? (order.clinical_intent || order.order_type) : 'unknown';
+        try {
+            let res;
+            switch (order.order_type) {
+                case 'Imaging':
+                    res = await postOrdersImaging(practiceId, encounterId, order, token);
+                    break;
+                case 'Lab':
+                    res = await postOrdersLab(practiceId, encounterId, order, token);
+                    break;
+                case 'Procedure':
+                    res = await postOrdersProcedure(practiceId, encounterId, order, token);
+                    break;
+                case 'Other':
+                    res = await postOrdersOther(practiceId, encounterId, order, token);
+                    break;
+                case 'PatientInfo':
+                    res = await postOrdersPatientInfo(practiceId, encounterId, order, token);
+                    break;
+                case 'Prescription':
+                    res = await postOrdersPrescription(practiceId, encounterId, order, token);
+                    break;
+                case 'Referral':
+                    res = await postOrdersReferral(practiceId, encounterId, order, token);
+                    break;
+                case 'Vaccine':
+                    res = await postOrdersVaccine(practiceId, encounterId, order, token);
+                    break;
+                case 'DME':
+                    res = await postOrdersDME(practiceId, encounterId, order, token);
+                    break;
+                default:
+                    throw new Error(`Unknown order type: ${order.order_type}`);
+            }
+            result[key] = { success: true, data: res };
+        } catch (error) {
+            console.error(`Error processing order (${key}):`, error.message);
+            result[key] = { success: false, error: error.message };
+        }
+    }
+
+    return result;
+};
+
 
 module.exports = {
     postOrdersReferral,
@@ -341,4 +399,5 @@ module.exports = {
     postOrdersLab,
     postOrdersImaging,
     postOrdersDME,
+    postOrdersAll
 };

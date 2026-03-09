@@ -1,5 +1,5 @@
 const express = require("express");
-const { postOrdersReferral, postOrdersVaccine, postOrdersProcedure, postOrdersPrescription, postOrdersPatientInfo, postOrdersOther, postOrdersLab, postOrdersImaging, postOrdersDME} = require("../services/ordersService");
+const { postOrdersReferral, postOrdersVaccine, postOrdersProcedure, postOrdersPrescription, postOrdersPatientInfo, postOrdersOther, postOrdersLab, postOrdersImaging, postOrdersDME, postOrdersAll} = require("../services/ordersService");
 const router = express.Router();
 
 // post orders
@@ -108,6 +108,20 @@ router.post("/:email/encounters/:encounterId/orders/dme", async (req, res) => {
         const result  = await postOrdersDME(practiceId, encounterId, data);
         res.status(200).json(result);
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+router.post("/:email/encounters/:encounterId/orders/all", async (req, res) => {
+    const data = req.body;
+    const { encounterId } = req.params;
+    const practiceId = data.practiceId;
+    const orders = data.orders;
+    try{
+        const result = await postOrdersAll(practiceId, encounterId, orders);
+        res.status(200).json(result);
+    } catch (error) {
+        console.log(error);
         res.status(500).json({ message: error.message });
     }
 });

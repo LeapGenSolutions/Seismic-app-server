@@ -194,24 +194,34 @@ async function postAll(practiceId, encounterId, noteText) {
         const reasonMatch = noteText.match(/Reason for Visit -([\s\S]*?)(?=\n\nSubjective -)/);
         const subjectiveMatch = noteText.match(/Subjective -([\s\S]*?)(?=\n\nFamily history discussed)/);
         const rosMatch = noteText.match(/Review of Systems(?:\s*\(ROS\))?:\s*([\s\S]*?)(?=\n\nObjective -)/);
-        // check
         const objectiveMatch = noteText.match(/Objective -([\s\S]*?)(?=\n\nAssessment and Plan -)/);
         const assessmentPlanMatch = noteText.match(/Assessment and Plan -([\s\S]*?)(?=\r?\n\r?\n\$procedure_notes|\r?\n\$procedure_notes|$)/i);
-        const reasonMarchResponse = reasonMatch ? await postVisitReason(practiceId, encounterId, reasonMatch[1].trim(), token) : null;
-        const subjectiveResponse = subjectiveMatch ? await putHPI(practiceId, encounterId, subjectiveMatch[1].trim(), token) : null;
-        const rosResponse = rosMatch ? await putReviewOfSystems(practiceId, encounterId, rosMatch[1].trim(), token) : null;
-        const objectiveResponse = objectiveMatch ? await putPhysicalExam(practiceId, encounterId, objectiveMatch[1].trim(), token) : null;
-        const assessmentPlanResponse = assessmentPlanMatch ? await putAssessment(practiceId, encounterId, assessmentPlanMatch[1].trim(), token) : null;
-        const data = {
-            reason: reasonMarchResponse.success,
-            subjective: subjectiveResponse.success,
-            ros: rosResponse.success,
-            objective: objectiveResponse.success,
-            assessmentPlan: assessmentPlanResponse.success
+        const sectionResults = {};
+
+        const sectionPosts = [
+            ["reason", reasonMatch, () => postVisitReason(practiceId, encounterId, reasonMatch[1].trim(), token)],
+            ["subjective", subjectiveMatch, () => putHPI(practiceId, encounterId, subjectiveMatch[1].trim(), token)],
+            ["ros", rosMatch, () => putReviewOfSystems(practiceId, encounterId, rosMatch[1].trim(), token)],
+            ["objective", objectiveMatch, () => putPhysicalExam(practiceId, encounterId, objectiveMatch[1].trim(), token)],
+            ["assessmentPlan", assessmentPlanMatch, () => putAssessment(practiceId, encounterId, assessmentPlanMatch[1].trim(), token)],
+        ];
+
+        for (const [key, match, postSection] of sectionPosts) {
+            if (!match) continue;
+
+            try {
+                await postSection();
+                sectionResults[key] = true;
+            } catch (error) {
+                console.error(`Error posting ${key}:`, error.message);
+                sectionResults[key] = false;
+            }
         }
-        return data;
+
+        return { section_results: sectionResults };
     } catch (error) {
         console.error("Error posting all sections:", error.message);
+        throw error;
     }
 }
 

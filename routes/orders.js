@@ -7,11 +7,11 @@ router.get("/:email/encounters/:appointmentId/encounterId", async (req, res) => 
     const practiceId = req.body.practiceId;
     const date = req.body.date;
     if(appointmentId === undefined || !email || practiceId === undefined){
-        return res.status(400).json({success: false, message: "Missing required fields" });
+        res.status(400).json({success: false, message: "Missing required fields" });
     }
     try{
         const result = await getEncounterId(practiceId, appointmentId, email, date);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message, encounterId: result.encounterId});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message, encounterId: result.encounterId});
     } catch (error) {
         console.log(error);
         res.status(500).json({ success: false, message: error.message });
@@ -25,11 +25,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/imaging", asy
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersImaging(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -40,11 +40,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/lab", async (
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersLab(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -55,11 +55,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/procedure", a
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersProcedure(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -70,11 +70,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/other", async
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersOther(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -85,11 +85,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/patientinfo",
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersPatientInfo(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -100,11 +100,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/prescription"
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersPrescription(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -115,11 +115,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/referral", as
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersReferral(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -130,11 +130,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/vaccine", asy
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersVaccine(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -145,11 +145,11 @@ router.post("/:email/encounters/:appointmentId/:encounterId/orders/dme", async (
     const { encounterId, appointmentId, email } = req.params;
     const practiceId = data.practiceId;
     if(!data.selected_order_id || !data.snomed_code || encounterId === undefined || appointmentId === undefined || !email || !practiceId){
-        return res.status(400).json({ success: false, message: "Missing required fields" });
+        res.status(400).json({ success: false, message: "Missing required fields" });
     }
     try{
         const result  = await postOrdersDME(practiceId, encounterId, data, appointmentId, email);
-        return res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
+        res.status(result.status).json({success : result.status === 200 ? true : false, message : result.message});
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

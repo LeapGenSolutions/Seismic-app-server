@@ -31,71 +31,100 @@ async function fetchOrdersdiagnoses(practiceId, encounterId, snomedcode, token) 
             return { status : response.status ,message: `Failed to fetch diagnoses: ${errorText.error}` };
         }
 
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Diagnosis posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating diagnoses:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }   
 }
 
-async function getEncounterId(practiceId, appointmentId, username, date){
+async function getEncounterId(practiceId, appointmentId, username, date) {
     const database = client.database(process.env.COSMOS_DATABASE);
     const container = database.container("seismic_appointments");
     const normalizedDoctorEmail = (username || '').toLowerCase();
     const id = appointmentId.replace(/\D/g, "");
-    try{
-        token = await getToken();
+
+    try {
+        // Get Athena token
+        const token = await getToken();
+
+        // Fetch appointment from Athena
         const response = await fetch(
             `${process.env.ATHENA_BASE_URL}/v1/${practiceId}/appointments/${id}`,
             {
                 method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
+                headers: { "Authorization": `Bearer ${token}` }
             }
         );
+
         if (!response.ok) {
             const errorText = await response.json();
-            return { status : response.status ,message: `Failed to fetch Appointment: ${errorText.error}` };
+            return { status: response.status, message: `Failed to fetch appointment: ${errorText.error}` };
         }
+
         const result = await response.json();
-        if(result[0].encounterid === undefined || result[0].encounterid === ""){
-            return { status : 404, message: `Encounter ID Not Found for the given appointment` };
+
+        if (!result[0]?.encounterid) {
+            return { status: 404, message: "Encounter ID not found for the given appointment" };
         }
-        const quesry = {
+
+        // Query Cosmos DB for the date
+        const querySpec = {
             query: `SELECT * FROM c WHERE c.id = @id`,
             parameters: [{ name: "@id", value: date }]
         };
-        const { resources: results } = await container.items.query(quesry).fetchAll();
-        if(results.length === 0){
-            return { status : 404, message: `Appointment Not Found` };
+
+        const { resources: results } = await container.items.query(querySpec).fetchAll();
+
+        if (results.length === 0) {
+            return { status: 404, message: "Appointment not found in Cosmos DB" };
         }
-        const appointments = results[0].data;
+
+        const appointments = results[0].data || [];
         const currentAppointment = appointments.find(app => app.id === appointmentId && app.doctor_email === normalizedDoctorEmail);
+
+        if (!currentAppointment) {
+            return { status: 404, message: "Current appointment not found for this doctor" };
+        }
+
+        // Prepare updated appointment
         const updatedAppointment = {
             ...currentAppointment,
-            athena_encounter_id : result[0].encounterid,
-            athena_patient_id : result[0].patientid || currentAppointment.athena_patient_id,
-            athena_provider_id : result[0].providerid || currentAppointment.athena_provider_id,
-            athena_departmentid : result[0].departmentid || currentAppointment.athena_departmentid
-        }
-        const updatedAppointments = appointments.map(app => {
-            if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
-                return { ...app, ...updatedAppointment };
-            }
-            return app;
-        });
-      const updateResponse = await container.items.upsert({ id: date, data: updatedAppointments });
-      if(updateResponse.statusCode >= 400){
-        const errorText = await updateResponse.json();
-        console.log(errorText);
-        return { status : updateResponse.statusCode ,message: `Failed to fetch EncouterId: ${errorText.error}` };
-      }
-      return { status : 200, encounterId: result[0].encounterid, message: "Encounter ID fetched and appointment updated successfully" };
-    } catch (error) {
-        console.error("Error fetching encounter ID:", error.message);
-        throw error;
+            athena_encounter_id: result[0].encounterid,
+            athena_patient_id: result[0].patientid || currentAppointment.athena_patient_id,
+            athena_provider_id: result[0].providerid || currentAppointment.athena_provider_id,
+            athena_departmentid: result[0].departmentid || currentAppointment.athena_departmentid
+        };
 
+        const updatedAppointments = appointments.map(app =>
+            app.id === appointmentId && app.doctor_email === normalizedDoctorEmail
+                ? { ...app, ...updatedAppointment }
+                : app
+        );
+
+        // Upsert updated appointments in Cosmos DB
+        const updateResponse = await container.items.upsert({ id: date, data: updatedAppointments });
+
+        if (!updateResponse || updateResponse.statusCode >= 400) {
+            console.error("Failed to upsert appointment", updateResponse);
+            return {
+                status: updateResponse?.statusCode || 500,
+                message: "Failed to update appointment with encounter ID"
+            };
+        }
+
+        return {
+            status: 200,
+            encounterId: result[0].encounterid,
+            message: "Encounter ID fetched and appointment updated successfully"
+        };
+
+    } catch (error) {
+        console.error("Error fetching encounter ID:", error);
+        return { status: 500, message: error.message };
     }
 }
 
@@ -128,10 +157,13 @@ async function postOrdersImaging(practiceId, encounterId, data, appointmentId, u
             return { status : response.status ,message: `Failed to fetch Imaging orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Imaging order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating imaging orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -164,10 +196,13 @@ async function postOrdersLab(practiceId, encounterId, data, appointmentId, usern
             return { status : response.status ,message: `Failed to fetch Lab orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Lab order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating lab orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -200,10 +235,13 @@ async function postOrdersOther(practiceId, encounterId, data, appointmentId, use
             return { status : response.status ,message: `Failed to fetch Other orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Other order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating other orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -238,10 +276,13 @@ async function postOrdersPatientInfo(practiceId, encounterId, data, appointmentI
             return { status : response.status ,message: `Failed to fetch Patient info orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Patient info order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating patient info orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -274,10 +315,13 @@ async function postOrdersPrescription(practiceId, encounterId, data, appointment
             return { status : response.status ,message: `Failed to fetch Prescription orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Prescription order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating prescription orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -310,10 +354,13 @@ async function postOrdersProcedure(practiceId, encounterId, data, appointmentId,
             return { status : response.status ,message: `Failed to fetch Procedure orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Procedure order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating procedure orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -346,10 +393,13 @@ async function postOrdersReferral(practiceId, encounterId, data, appointmentId, 
             return { status : response.status ,message: `Failed to fetch Referral orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Referral order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating referral orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -382,10 +432,13 @@ async function postOrdersVaccine(practiceId, encounterId, data, appointmentId, u
             return { status : response.status ,message: `Failed to fetch Vaccine orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "Vaccine order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating vaccine orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -418,10 +471,13 @@ async function postOrdersDME(practiceId, encounterId, data, appointmentId, usern
             return { status : response.status ,message: `Failed to fetch DME orders: ${errorText.error}` };
         }
         await isPosted(appointmentId, username, data.selected_order_id, data);
-        return await response.json();
+        return { 
+            status: 200, 
+            message: "DME order posted successfully", 
+        };
     } catch (error) {
         console.error("Error updating DME orders:", error.message);
-        throw error;
+        return { status: 500, message: error.message };
     }
 };
 
@@ -439,7 +495,6 @@ async function isPosted(appointmentId, username, orderId, data){
         await container.item(`${username}_${appointmentId}_soap`, username).replace(updatedItem);
     }catch (err) {
         console.error(err);
-        throw new Error({ error: "Failed to update order status" });
     }
 }
 

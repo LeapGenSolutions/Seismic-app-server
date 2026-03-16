@@ -114,6 +114,7 @@ async function fetchAppointmentsByEmails(emails) {
                   d.athena_encounter_id,
                   d.athena_departmentid,
                   d.athena_practice_id
+                  
               FROM c
               JOIN d IN c.data 
               WHERE lower(d.doctor_email) IN (${emailParams.join(", ")})`,
@@ -128,7 +129,78 @@ async function fetchAppointmentsByEmails(emails) {
   }
 }
 
-async function createAppointment(userId, data, auditMeta = {}) {
+async function fetchAppointmentsByClinic(clinicName, auditMeta = {}) {
+  if (!clinicName) return [];
+  const database = client.database(databaseId);
+  const seismic_appointments_container = database.container("seismic_appointments");
+  const normalizedClinic = clinicName.replace(/\s+/g, " ").trim().toLowerCase();
+
+  try {
+    const seismicQuery = {
+      query: `SELECT 
+                  c.id AS appointment_date,
+                  d.id,
+                  d.type,
+                  d.first_name,
+                  d.last_name,
+                  d.middle_name,
+                  d.full_name,
+                  d.dob,
+                  d.gender,
+                  d.mrn,
+                  d.ehr,
+                  d.ssn,
+                  d.doctor_name,
+                  d.doctor_id,
+                  lower(d.doctor_email) as doctor_email,
+                  d.specialization,
+                  d.time,
+                  d.status,
+                  d.insurance_provider,
+                  d.email,
+                  d.phone,
+                  d.insurance_verified,
+                  d.patient_id,
+                  d.practice_id,
+                  d.clinicName
+              FROM c
+              JOIN d IN c.data 
+              WHERE LTRIM(RTRIM(LOWER(d.clinicName))) = @clinicName 
+                 OR LTRIM(RTRIM(LOWER(d.details.clinicName))) = @clinicName 
+                 OR LTRIM(RTRIM(LOWER(d.original_json.clinicName))) = @clinicName
+                 OR LTRIM(RTRIM(LOWER(d.original_json.details.clinicName))) = @clinicName`,
+      parameters: [{ name: "@clinicName", value: normalizedClinic }]
+    };
+
+    const { resources: items } = await seismic_appointments_container.items.query(seismicQuery).fetchAll();
+    console.log(`DEBUG: Found ${items.length} appointments for clinic "${normalizedClinic}"`);
+    trackAppointmentAudit("appointment.audit", {
+      action: "fetch_by_clinic",
+      status: "success",
+      performed_by: auditMeta.performedBy || "unknown",
+      clinic_name: normalizedClinic,
+      result_count: items.length,
+      route: auditMeta.route,
+      method: auditMeta.method
+    });
+    return items;
+  } catch (error) {
+    trackAppointmentAudit("appointment.audit", {
+      action: "fetch_by_clinic",
+      status: "failed",
+      performed_by: auditMeta.performedBy || "unknown",
+      clinic_name: normalizedClinic,
+      error_message: error?.message,
+      route: auditMeta.route,
+      method: auditMeta.method
+    });
+    console.error("Error fetching appointments by clinic:", error);
+    throw error;
+  }
+}
+
+  async function createAppointment(userId, data, auditMeta = {}) {
+  //console.log("DEBUG: createAppointment - Incoming Data:", JSON.stringify(data, null, 2));
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (userId || '').toLowerCase();
@@ -161,8 +233,15 @@ async function createAppointment(userId, data, auditMeta = {}) {
     insurance_provider: data.insurance_provider,
     appointment_date: data.appointment_date,
     ehr: data.ehr,
-    mrn: data.mrn
+    mrn: data.mrn,
+    mrn: data.mrn,
+    clinicName: (data.clinicName || "").replace(/\s+/g, " ").trim()
   };
+
+  //console.log("DEBUG: createAppointment - Prepared newAppointment:", JSON.stringify(newAppointment, null, 2));
+
+  //console.log("DEBUG: createAppointment - Incoming data:", JSON.stringify(data));
+  //console.log("DEBUG: createAppointment - newAppointment object:", JSON.stringify(newAppointment));
 
   try {
     let existingAppointments = null;
@@ -177,7 +256,7 @@ async function createAppointment(userId, data, auditMeta = {}) {
       console.error('Fallback query to read date document failed:', qErr);
       existingAppointments = null;
     }
-    if(existingAppointments === null) {
+    if (existingAppointments === null) {
       const item = {
         id: date,
         data: [newAppointment]
@@ -221,7 +300,7 @@ async function createAppointment(userId, data, auditMeta = {}) {
         method: auditMeta.method
       });
     }
-    return createdItem;
+      return createdItem;
   } catch (error) {
     if (!auditMeta.suppressAudit) {
       trackAppointmentAudit("appointment.audit", {
@@ -247,12 +326,13 @@ async function createAppointment(userId, data, auditMeta = {}) {
 const createBulkAppointments = async (file, data) => {
   const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.RECORDINGS_BLOB_CONNECTION_STRING);
   const containerClient = blobServiceClient.getContainerClient("seismic-appointment-uploads");
-  const blobName = `${Date.now()}-${file.originalname}`;
+  const blobName = `${Date.now()} -${file.originalname} `;
   const blockBlobClient = containerClient.getBlockBlobClient(blobName);
   try {
     await blockBlobClient.uploadData(file.buffer);
-    const resource  = await startJob({
-      "env": "dev",
+    const resource = await startJob({
+      // make sure to change the env value to "prod" when deploying to production
+      "env": "test",
       "file_name": blobName,
       "doctor_name": data.doctor_name,
       "doctor_email": data.doctor_email || data.userId,
@@ -260,7 +340,7 @@ const createBulkAppointments = async (file, data) => {
       "practice_id": data.practice_id,
       "doctor_id": data.doctor_id
     });
-    return { message: "File uploaded successfully", fileName : blobName, fileUrl: blockBlobClient.url, resource };
+    return { message: "File uploaded successfully", fileName: blobName, fileUrl: blockBlobClient.url, resource };
   } catch (error) {
     console.error("Error uploading bulk appointments file:", error);
     throw error;
@@ -268,48 +348,48 @@ const createBulkAppointments = async (file, data) => {
 };
 
 const getToken = async () => {
-  try{
+  try {
     const url = `https://login.microsoftonline.com/${process.env.TENANT_ID}/oauth2/token`;
     const params = new URLSearchParams();
     params.append("client_id", process.env.CLIENT_ID);
     params.append("client_secret", process.env.CLIENT_SECRET);
     params.append("grant_type", "client_credentials");
     params.append("resource", "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d");
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
       body: params
     });
     const data = await response.json();
     return data.access_token;
-  }catch (err){
+  } catch (err) {
     console.error("error: ", err);
     throw err;
   }
 }
 
-const startJob = async(data) => {
-  try{
+const startJob = async (data) => {
+  try {
     console.log("starting job with data: ", data);
     const response = await fetch(`${process.env.DATABRICKS_WORKSPACE_URL}/api/2.1/jobs/run-now`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${await getToken()}`,
-          'content-type': 'application/json'
-        },
-        body : JSON.stringify({
-            "job_id" : process.env.JOB_ID,
-            "notebook_params" : data
-          }
-        )
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${await getToken()}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        "job_id": process.env.JOB_ID,
+        "notebook_params": data
       }
+      )
+    }
     )
     const result = await response.json();
-    return result;   
-  }catch(err){
+    return result;
+  } catch (err) {
     console.error("error starting job: ", err);
     throw err;
   }
@@ -319,14 +399,14 @@ const deleteAppointment = async (user_id, appointmentId, date, auditMeta = {}) =
   const database = client.database(databaseId);
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (user_id || '').toLowerCase();
-  try{
+  try {
     const today = date || new Date().toISOString().slice(0, 10);
     const quesry = {
       query: `SELECT * FROM c WHERE c.id = @id`,
       parameters: [{ name: "@id", value: today }]
     };
     const { resources: results } = await container.items.query(quesry).fetchAll();
-    if(results.length === 0){
+    if (results.length === 0) {
       throw new Error("No appointments found for today");
     }
     const todaysAppointments = results[0].data;
@@ -348,7 +428,7 @@ const deleteAppointment = async (user_id, appointmentId, date, auditMeta = {}) =
         method: auditMeta.method
       });
     }
-  }catch(err){
+  } catch (err) {
     if (!auditMeta.suppressAudit) {
       trackAppointmentAudit("appointment.audit", {
         action: "delete",
@@ -372,13 +452,13 @@ const updateAppointment = async (user_id, appointmentId, updatedData, auditMeta 
   const container = database.container("seismic_appointments");
   const normalizedDoctorEmail = (user_id || '').toLowerCase();
   const date = updatedData.original_appointment_date;
-  try{
+  try {
     const quesry = {
       query: `SELECT * FROM c WHERE c.id = @id`,
       parameters: [{ name: "@id", value: date }]
     };
     const { resources: results } = await container.items.query(quesry).fetchAll();
-    if(results.length === 0){
+    if (results.length === 0) {
       throw new Error("No appointments found for today");
     }
     const appointments = results[0].data;
@@ -391,9 +471,10 @@ const updateAppointment = async (user_id, appointmentId, updatedData, auditMeta 
       cancelled_at: undefined,
       cancelled_by: undefined,
       cancelled_reason: undefined,
-      status: "scheduled"
+      status: "scheduled",
+      clinicName: (updatedData.clinicName || currentAppointment.clinicName || "").replace(/\s+/g, " ").trim()
     }
-    if(updatedData.appointment_date !== updatedData.original_appointment_date){
+    if (updatedData.appointment_date !== updatedData.original_appointment_date) {
       await deleteAppointment(user_id, appointmentId, updatedData.original_appointment_date, {
         ...auditMeta,
         suppressAudit: true
@@ -407,7 +488,7 @@ const updateAppointment = async (user_id, appointmentId, updatedData, auditMeta 
         updatedAppointment.status = "rescheduled";
       }
       const updatedAppointments = appointments.map(app => {
-        if(app.id === appointmentId && app.doctor_email === normalizedDoctorEmail){
+        if (app.id === appointmentId && app.doctor_email === normalizedDoctorEmail) {
           return { ...app, ...updatedAppointment };
         }
         return app;
@@ -440,9 +521,10 @@ const updateAppointment = async (user_id, appointmentId, updatedData, auditMeta 
       phone: updatedAppointment.phone?.replace(/\D/g, ""),
       ehr: updatedAppointment.ehr,
       mrn: updatedAppointment.mrn,
+      clinicName: updatedAppointment.clinicName
     });
     return updatedAppointment;
-  }catch(err){
+  } catch (err) {
     if (!auditMeta.suppressAudit) {
       trackAppointmentAudit("appointment.audit", {
         action: "edit",
@@ -472,20 +554,20 @@ const cancelAppointment = async(userId, appId, reason, date, auditMeta = {}) => 
       parameters: [{ name: "@id", value: today }]
     };
     const { resources: results } = await container.items.query(quesry).fetchAll();
-    if(results.length === 0){
+    if (results.length === 0) {
       throw new Error("No appointments found for today");
     }
     const todaysAppointments = results[0].data;
     const appointment = todaysAppointments.find(app => app.id === appId && app.doctor_email === normalizedDoctorEmail);
     const updatedAppointment = {
       ...appointment,
-      status : "cancelled",
+      status: "cancelled",
       cancelled_at: new Date().toISOString().slice(0, 10),
-      cancelled_by : userId,
+      cancelled_by: userId,
       cancelled_reason: reason
     }
     const updatedAppointments = todaysAppointments.map(app => {
-      if(app.id === appId && app.doctor_email === normalizedDoctorEmail){
+      if (app.id === appId && app.doctor_email === normalizedDoctorEmail) {
         return updatedAppointment;
       }
       return app;

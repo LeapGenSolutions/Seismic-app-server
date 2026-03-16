@@ -38,15 +38,25 @@ async function generateUniquePatientId(container) {
 
 /* ---------------- READ : ALL PATIENTS ---------------- */
 
-async function fetchAllPatients() {
+async function fetchAllPatients(clinicName) {
   const database = client.database(databaseId);
   const container = database.container("Patients");
 
-  const querySpec = { query: "SELECT c.original_json FROM c" };
+  let querySpec = { query: "SELECT c.original_json, c.clinicName FROM c" };
+
+  if (clinicName) {
+    // Case-insensitive filtering
+    querySpec = {
+      query: "SELECT c.original_json, c.clinicName FROM c WHERE LTRIM(RTRIM(LOWER(c.clinicName))) = @clinicName",
+      parameters: [{ name: "@clinicName", value: clinicName.replace(/\s+/g, " ").trim().toLowerCase() }]
+    };
+  }
+
   const { resources } = await container.items.query(querySpec).fetchAll();
 
   return resources.map(item => {
     const oj = item.original_json;
+    const itemClinic = item.clinicName;
 
     // ✅ NEW FORMAT
     if (oj?.original_json?.details) {
@@ -54,6 +64,7 @@ async function fetchAllPatients() {
         patient_id: oj.original_json.patient_id,
         practice_id: oj.original_json.practice_id,
         ...oj.original_json.details,
+        clinicName: itemClinic || oj.original_json.details.clinicName
       };
     }
 
@@ -72,6 +83,7 @@ async function fetchAllPatients() {
         email: d.email || "",
         contactmobilephone: d.phone || "",
         ssn: d.ssn || "",
+        clinicName: itemClinic || ""
       };
     }
 
@@ -127,29 +139,32 @@ async function fetchPatientById(patient_id) {
 /* ---------------- CREATE : CHATBOT (NEW FORMAT ONLY) ---------------- */
 
 async function createPatient(data) {
+  //console.log("DEBUG: createPatient - Incoming Data:", JSON.stringify(data, null, 2));
   const database = client.database(databaseId);
   const container = database.container("Patients");
 
-  const firstName = (data?. firstname || data.first_name || '').toLowerCase().trim();
-        const lastName = (data?.lastname || data?.last_name || '').toLowerCase().trim();
-        const email = (data?.email || '').toLowerCase().trim();
-        const existingPatientQuery = {
-            query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.firstname) = @first_name AND LOWER(c.original_json.original_json.details.lastname) = @last_name AND c.original_json.original_json.details.email = @email",
-            parameters: [
-                { name: "@first_name", value: firstName },
-                { name: "@last_name", value: lastName },
-                { name: "@email", value: email }
-            ]
-        };
+  const firstName = (data?.firstname || data.first_name || '').toLowerCase().trim();
+  const lastName = (data?.lastname || data?.last_name || '').toLowerCase().trim();
+  const email = (data?.email || '').toLowerCase().trim();
+  const clinicName = (data?.clinicName || '').replace(/\s+/g, " ").trim();
+  const existingPatientQuery = {
+    query: "SELECT * FROM c WHERE LOWER(c.original_json.original_json.details.firstname) = @first_name AND LOWER(c.original_json.original_json.details.lastname) = @last_name AND c.original_json.original_json.details.email = @email AND LTRIM(RTRIM(LOWER(c.clinicName))) = @clinicName",
+    parameters: [
+      { name: "@first_name", value: firstName },
+      { name: "@last_name", value: lastName },
+      { name: "@email", value: email },
+      { name: "@clinicName", value: clinicName.replace(/\s+/g, " ").trim().toLowerCase() }
+    ]
+  };
 
   const { resources } = await container.items.query(existingPatientQuery).fetchAll();
   const existingPatient = resources?.[0];
-  if(existingPatient) {
+  if (existingPatient) {
     const oj = existingPatient?.original_json?.original_json?.details;
     const updatedDetails = {
-      firstname:  data?.firstname || data?.first_name || oj?.firstname || "" ,
+      firstname: data?.firstname || data?.first_name || oj?.firstname || "",
       middlename: data?.middlename || data?.middle_name || oj?.middlename || "",
-      lastname: data?.lastname || data?.last_name || oj?.lastname ||"",
+      lastname: data?.lastname || data?.last_name || oj?.lastname || "",
       dob: data?.dob || oj?.dob || "",
       sex: data?.sex || data?.gender || oj?.sex || "",
       address1: data?.address1 || oj?.address1 || "",
@@ -170,14 +185,14 @@ async function createPatient(data) {
       preferredpronouns: data?.preferredpronouns || oj?.preferredpronouns || "",
       portalaccessgiven: data?.portalaccessgiven || oj?.portalaccessgiven || "N",
       portalsignatureonfile: !!data?.portalsignatureonfile || oj?.portalsignatureonfile,
-      portalstatus: data?.portalstatus ||  [
+      portalstatus: data?.portalstatus || [
         {
-            registeredyn: oj?.portalstatus?.[0]?.registeredyn || "Y",
-            status: oj?.portalstatus?.[0]?.status || "Active",
-            lastlogindate: new Date().toISOString().split("T")[0],
-            portalregistrationdate: oj?.portalstatus?.[0]?.portalregistrationdate || new Date().toISOString().split("T")[0]
+          registeredyn: oj?.portalstatus?.[0]?.registeredyn || "Y",
+          status: oj?.portalstatus?.[0]?.status || "Active",
+          lastlogindate: new Date().toISOString().split("T")[0],
+          portalregistrationdate: oj?.portalstatus?.[0]?.portalregistrationdate || new Date().toISOString().split("T")[0]
         }
-        ],
+      ],
       privacyinformationverified: !!data?.privacyinformationverified || oj?.privacyinformationverified,
       race: data?.race || oj?.race || "",
       ethnicitycode: data?.ethnicitycode || oj?.ethnicitycode || "",
@@ -194,6 +209,8 @@ async function createPatient(data) {
           details: updatedDetails
         }
       },
+      clinicName: clinicName || existingPatient?.clinicName || "",
+      created_at: existingPatient?.created_at
     }
     const { resource } = await container.items.upsert(updatedPatient);
     return resource;
@@ -239,12 +256,12 @@ async function createPatient(data) {
           portalsignatureonfile: !!data?.portalsignatureonfile,
           portalstatus: data?.portalstatus || [
             {
-                registeredyn: "Y",
-                status: "Active",
-                lastlogindate: new Date().toISOString().split("T")[0],
-                portalregistrationdate: new Date().toISOString().split("T")[0]
+              registeredyn: "Y",
+              status: "Active",
+              lastlogindate: new Date().toISOString().split("T")[0],
+              portalregistrationdate: new Date().toISOString().split("T")[0]
             }
-            ],
+          ],
           privacyinformationverified: !!data?.privacyinformationverified,
           race: data?.race || "",
           ethnicitycode: data?.ethnicitycode || "",
@@ -252,8 +269,12 @@ async function createPatient(data) {
         }
       }
     },
+    clinicName: clinicName || "",
     created_at: new Date().toISOString(),
   };
+
+  //console.log("DEBUG: createPatient - Incoming data:", JSON.stringify(data));
+  //console.log("DEBUG: createPatient - newPatient object:", JSON.stringify(newPatient));
 
   const { resource } = await container.items.create(newPatient);
   return resource;
@@ -279,6 +300,7 @@ async function fetchPatientByIdSeismic(patient_id) {
 }
 
 async function createPatientSeismic(data) {
+  //console.log("DEBUG: createPatientSeismic - Incoming Data:", JSON.stringify(data, null, 2));
   const database = client.database(process.env.COSMOS_DATABASE);
   const container = database.container("patients");
 
@@ -294,13 +316,15 @@ async function createPatientSeismic(data) {
     parameters: [{ name: "@id", value: id }]
   }).fetchAll();
 
-  
+
 
   if (resources.length > 0) {
     const updatedPatient = {
       ...resources[0],
       ...data,
+      ...data,
       ssn: String(ssn),
+      clinicName: (data?.clinicName || "").replace(/\s+/g, " ").trim(),
     };
     const { resource } = await container.items.upsert(updatedPatient);
     return resource;
@@ -310,6 +334,7 @@ async function createPatientSeismic(data) {
     id,
     ...data,
     ssn: String(ssn),
+    clinicName: (data?.clinicName || "").replace(/\s+/g, " ").trim(),
     created_at: new Date().toISOString(),
   };
 

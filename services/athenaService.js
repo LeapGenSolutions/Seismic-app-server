@@ -199,18 +199,90 @@ async function postAll(practiceId, encounterId, noteText) {
         const sectionResults = {};
 
         const sectionPosts = [
-            ["reason", reasonMatch, () => postVisitReason(practiceId, encounterId, reasonMatch[1].trim(), token)],
-            ["subjective", subjectiveMatch, () => putHPI(practiceId, encounterId, subjectiveMatch[1].trim(), token)],
-            ["ros", rosMatch, () => putReviewOfSystems(practiceId, encounterId, rosMatch[1].trim(), token)],
-            ["objective", objectiveMatch, () => putPhysicalExam(practiceId, encounterId, objectiveMatch[1].trim(), token)],
-            ["assessmentPlan", assessmentPlanMatch, () => putAssessment(practiceId, encounterId, assessmentPlanMatch[1].trim(), token)],
+            ["reason", reasonMatch, (sectionText) => postVisitReason(practiceId, encounterId, sectionText, token)],
+            ["subjective", subjectiveMatch, (sectionText) => putHPI(practiceId, encounterId, sectionText, token)],
+            ["ros", rosMatch, (sectionText) => putReviewOfSystems(practiceId, encounterId, sectionText, token)],
+            ["objective", objectiveMatch, (sectionText) => putPhysicalExam(practiceId, encounterId, sectionText, token)],
+            ["assessmentPlan", assessmentPlanMatch, (sectionText) => putAssessment(practiceId, encounterId, sectionText, token)],
         ];
 
         for (const [key, match, postSection] of sectionPosts) {
             if (!match) continue;
 
             try {
-                await postSection();
+                let sectionText = match[1].trim();
+
+                if (key === "objective") {
+                    try {
+                        const obj = JSON.parse(sectionText);
+                        let formatted = "";
+
+                        if (obj.vital_signs && Object.keys(obj.vital_signs).length) {
+                            formatted += "Vital Signs:\n";
+                            for (const [k, v] of Object.entries(obj.vital_signs)) {
+                                formatted += `${k}: ${v}\n`;
+                            }
+                            formatted += "\n";
+                        }
+
+                        if (obj.body_measures && Object.keys(obj.body_measures).length) {
+                            formatted += "Body Measures:\n";
+                            for (const [k, v] of Object.entries(obj.body_measures)) {
+                                formatted += `${k}: ${v}\n`;
+                            }
+                            formatted += "\n";
+                        }
+
+                        if (obj.physical_exams && Object.keys(obj.physical_exams).length) {
+                            formatted += "Physical Exam:\n";
+                            for (const [k, v] of Object.entries(obj.physical_exams)) {
+                                formatted += `${k}: ${v}\n`;
+                            }
+                            formatted += "\n";
+                        }
+
+                        if (obj.laboratory_data?.length) {
+                            formatted += "Laboratory Data:\n";
+                            obj.laboratory_data.forEach(x => formatted += `- ${x}\n`);
+                            formatted += "\n";
+                        }
+
+                        if (obj.imaging_studies?.length) {
+                            formatted += "Imaging Studies:\n";
+                            obj.imaging_studies.forEach(x => formatted += `- ${x}\n`);
+                            formatted += "\n";
+                        }
+
+                        sectionText = formatted.trim();
+                    } catch (e) {
+                        console.warn("Objective is not valid JSON");
+                    }
+                }
+
+                if (key === "assessmentPlan") {
+                    try {
+                        const obj = JSON.parse(sectionText);
+                        let formatted = "";
+
+                        if (obj.problems) {
+                            obj.problems.forEach((p, i) => {
+                                formatted += `Problem #${i + 1}: ${p.problem}\n`;
+                                formatted += `Assessment: ${p.assessment}\n`;
+                                formatted += `Plan: ${p.plan}\n\n`;
+                            });
+                        }
+
+                        if (obj.follow_up) {
+                            formatted += `Follow-up: ${obj.follow_up}`;
+                        }
+
+                        sectionText = formatted.trim();
+                    } catch (e) {
+                        console.warn("AssessmentPlan not JSON");
+                    }
+                }
+
+                await postSection(sectionText);
                 sectionResults[key] = true;
             } catch (error) {
                 console.error(`Error posting ${key}:`, error.message);

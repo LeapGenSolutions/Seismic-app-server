@@ -42,14 +42,23 @@ async function fetchEmailFromCallHistory(id) {
         throw new Error("Item not found");
     }
 }
-async function fetchDoctors() {
-    const database = client.database("seismic-backend-athena");
+async function fetchDoctors(clinicName) {
+    const databaseId = process.env.COSMOS_DATABASE;
+    const database = client.database(databaseId);
     const container = database.container("doctors");
+
     try {
-        const querySpec = { query: `SELECT * from c` };
+        let querySpec = { query: `SELECT * from c` };
+        if (clinicName) {
+            querySpec = {
+                query: `SELECT * from c WHERE LTRIM(RTRIM(LOWER(c.clinicName))) = @clinicName`,
+                parameters: [{ name: "@clinicName", value: clinicName.replace(/\s+/g, " ").trim().toLowerCase() }]
+            };
+        }
         const { resources: items } = await container.items.query(querySpec).fetchAll();
         return items;
     } catch (error) {
+        console.error("Error in fetchDoctors:", error);
         throw new Error("Item not found");
     }
 }

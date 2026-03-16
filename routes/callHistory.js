@@ -27,7 +27,8 @@ router.post("/checkAppointments", async (req, res) => {
 
 router.get("/doctors", async (req, res) => {
   try {
-    const item = await fetchDoctors();
+    const { clinicName } = req.query;
+    const item = await fetchDoctors(clinicName);
     res.json(item);
   } catch (err) {
     res.status(404).json({ error: "Item not found" });

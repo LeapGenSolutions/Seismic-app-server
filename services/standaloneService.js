@@ -88,7 +88,7 @@ async function verifyStandaloneAuth(email, userId) {
 async function registerStandaloneUser(data) {
   const container = getUsersContainer();
 
-  // Check for duplicate NPI
+   // Check for duplicate NPI
   const npiExists = await checkNPIDuplicate(data.npiNumber);
   if (npiExists) {
     throw new Error("NPI_DUPLICATE");

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { fetchAppointmentsByEmails, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment, cancelAppointment } = require("../services/appointmentsService");
+const { fetchAppointmentsByEmails, fetchAppointmentsByClinic, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment, cancelAppointment } = require("../services/appointmentsService");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -16,6 +16,25 @@ function getPerformedBy(req, fallbackEmail) {
     fallbackEmail
   );
 }
+
+router.get("/all", async (req, res) => {
+  try {
+    const { clinicName } = req.query;
+
+    if (!clinicName) {
+      return res.status(400).json({ error: "clinicName query parameter is required" });
+    }
+    const items = await fetchAppointmentsByClinic(clinicName, {
+      performedBy: getPerformedBy(req, "unknown"),
+      route: req.originalUrl,
+      method: req.method
+    });
+    res.json(items);
+  } catch (err) {
+    console.error("Error fetching appointments by clinic:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get("/:email", async (req, res) => {
   try {
@@ -45,8 +64,8 @@ router.post("/:email/custom/appointment", async (req, res) => {
 
 router.post("/bulk/appointments", upload.single("file"), async (req, res) => {
   const data = JSON.parse(req.body.data);
-  try{
-    if(!req.file){
+  try {
+    if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
     const result = await createBulkAppointments(req.file, data);
@@ -57,7 +76,7 @@ router.post("/bulk/appointments", upload.single("file"), async (req, res) => {
 });
 
 router.delete("/:email/appointment/:id", async (req, res) => {
-  try{
+  try {
     const { email, id } = req.params;
     const date = req.body.appointment_date;
     await deleteAppointment(email, id, date, {
@@ -72,7 +91,7 @@ router.delete("/:email/appointment/:id", async (req, res) => {
 });
 
 router.patch("/:email/cancel/:id", async (req, res) => {
-  try{
+  try {
     const { email, id } = req.params;
     const reason = req.body.reason;
     const date = req.body.appointment_date;
@@ -81,15 +100,15 @@ router.patch("/:email/cancel/:id", async (req, res) => {
       route: req.originalUrl,
       method: req.method
     });
-    res.status(200).json({message: "Appointment cancel successfully"});
-  }catch (err) {
+    res.status(200).json({ message: "Appointment cancel successfully" });
+  } catch (err) {
     console.error("Error canceling appointment:", err);
-    res.status(500).json({error : "internal server error"});
+    res.status(500).json({ error: "internal server error" });
   }
 })
 
 router.patch("/:email/appointment/:id", async (req, res) => {
-  try{
+  try {
     const { email, id } = req.params;
     const data = req.body;
     const updatedAppointments = await updateAppointment(email, id, data, {

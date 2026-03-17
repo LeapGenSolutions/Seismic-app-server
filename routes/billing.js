@@ -19,13 +19,11 @@ router.get("/:id", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await patchBillingByAppointment(id, req.query.username, req.body);
-    res.status(200).json({ success: true , result : result});
+    await patchBillingByAppointment(id, req.query.username, req.body.billing_codes);
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Error updating billing codes:", error);
     res.status(500).json({ error: "Failed to update billing codes" });
   }
 });
 
 module.exports = router;
-

@@ -217,40 +217,11 @@ async function postAll(practiceId, encounterId, noteText) {
                         const obj = JSON.parse(sectionText);
                         let formatted = "";
 
-                        if (obj.vital_signs && Object.keys(obj.vital_signs).length) {
-                            formatted += "Vital Signs:\n";
-                            for (const [k, v] of Object.entries(obj.vital_signs)) {
-                                formatted += `${k}: ${v}\n`;
-                            }
-                            formatted += "\n";
-                        }
-
-                        if (obj.body_measures && Object.keys(obj.body_measures).length) {
-                            formatted += "Body Measures:\n";
-                            for (const [k, v] of Object.entries(obj.body_measures)) {
-                                formatted += `${k}: ${v}\n`;
-                            }
-                            formatted += "\n";
-                        }
-
                         if (obj.physical_exams && Object.keys(obj.physical_exams).length) {
                             formatted += "Physical Exam:\n";
                             for (const [k, v] of Object.entries(obj.physical_exams)) {
                                 formatted += `${k}: ${v}\n`;
                             }
-                            formatted += "\n";
-                        }
-
-                        if (obj.laboratory_data?.length) {
-                            formatted += "Laboratory Data:\n";
-                            obj.laboratory_data.forEach(x => formatted += `- ${x}\n`);
-                            formatted += "\n";
-                        }
-
-                        if (obj.imaging_studies?.length) {
-                            formatted += "Imaging Studies:\n";
-                            obj.imaging_studies.forEach(x => formatted += `- ${x}\n`);
-                            formatted += "\n";
                         }
 
                         sectionText = formatted.trim();

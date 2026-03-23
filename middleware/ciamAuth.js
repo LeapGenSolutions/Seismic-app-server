@@ -1,4 +1,5 @@
 const { verifyJWT } = require("../services/tokenVerification");
+const { resolveCustomRolePermissions } = require("./rbacAuth");
 
 
 async function authenticateCIAM(req, res, next) {
@@ -80,6 +81,10 @@ async function requireRegistration(req, res, next) {
 
     // Attach full user data to request
     req.userData = user;
+    req.customRolePermissions = await resolveCustomRolePermissions(
+      user.role,
+      user.clinicName
+    );
     next();
 
   } catch (error) {

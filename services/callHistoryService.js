@@ -1,4 +1,5 @@
 const { CosmosClient } = require("@azure/cosmos");
+const { getUsersContainer } = require("./cosmosClient");
 require("dotenv").config();
 
 const endpoint = process.env.COSMOS_ENDPOINT;
@@ -42,10 +43,107 @@ async function fetchEmailFromCallHistory(id) {
         throw new Error("Item not found");
     }
 }
+
+function normalizeClinicName(clinicName) {
+    return (clinicName || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function getAdminPermissionLevel(user) {
+    return user?.customPermissions?.overrides?.["admin.manage_rbac"] || "none";
+}
+
+function getBootstrapSortValue(user) {
+    return (
+        user?.created_at ||
+        user?.createdAt ||
+        user?.updatedAt ||
+        user?.lastLoginAt ||
+        user?.doctor_email ||
+        user?.email ||
+        user?.id ||
+        ""
+    );
+}
+
+async function ensureBootstrapClinicAdmins(users = []) {
+    const container = getUsersContainer();
+    const usersByClinic = users.reduce((acc, user) => {
+        const clinicKey = normalizeClinicName(user?.clinicName);
+        if (!clinicKey) {
+            return acc;
+        }
+
+        if (!acc[clinicKey]) {
+            acc[clinicKey] = [];
+        }
+
+        acc[clinicKey].push(user);
+        return acc;
+    }, {});
+
+    const updatedUsers = new Map();
+
+    for (const clinicUsers of Object.values(usersByClinic)) {
+        const completedUsers = clinicUsers.filter((user) => user?.profileComplete === true);
+        if (completedUsers.length === 0) {
+            continue;
+        }
+
+        const alreadyHasAdmin = completedUsers.some((user) => {
+            const level = getAdminPermissionLevel(user);
+            return level === "read" || level === "write";
+        });
+
+        if (alreadyHasAdmin) {
+            continue;
+        }
+
+        const bootstrapUser = [...completedUsers].sort((a, b) =>
+            String(getBootstrapSortValue(a)).localeCompare(String(getBootstrapSortValue(b)))
+        )[0];
+
+        if (!bootstrapUser?.id) {
+            continue;
+        }
+
+        const updatedAt = new Date().toISOString();
+        const updatedUser = {
+            ...bootstrapUser,
+            customPermissions: {
+                ...(bootstrapUser.customPermissions || {}),
+                overrides: {
+                    ...((bootstrapUser.customPermissions && bootstrapUser.customPermissions.overrides) || {}),
+                    "admin.manage_rbac": "write",
+                },
+                lastUpdatedBy: "system-bootstrap",
+                lastUpdatedAt: updatedAt,
+            },
+            permissionAuditLog: [
+                ...((bootstrapUser.permissionAuditLog || []).slice(-49)),
+                {
+                    action: "bootstrap_clinic_admin_granted",
+                    permission: "admin.manage_rbac",
+                    newLevel: "write",
+                    performedBy: "system-bootstrap",
+                    timestamp: updatedAt,
+                    clinicName: bootstrapUser.clinicName || "",
+                },
+            ],
+            updatedAt,
+        };
+
+        const { resource } = await container
+            .item(bootstrapUser.id, bootstrapUser.id)
+            .replace(updatedUser);
+
+        updatedUsers.set(resource.id, resource);
+    }
+
+    return users.map((user) => updatedUsers.get(user.id) || user);
+}
+
 async function fetchDoctors(clinicName) {
-    const databaseId = process.env.COSMOS_DATABASE;
-    const database = client.database(databaseId);
-    const container = database.container("doctors");
+    const container = getUsersContainer();
 
     try {
         let querySpec = { query: `SELECT * from c` };
@@ -56,7 +154,7 @@ async function fetchDoctors(clinicName) {
             };
         }
         const { resources: items } = await container.items.query(querySpec).fetchAll();
-        return items;
+        return await ensureBootstrapClinicAdmins(items);
     } catch (error) {
         console.error("Error in fetchDoctors:", error);
         throw new Error("Item not found");

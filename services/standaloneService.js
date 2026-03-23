@@ -1,4 +1,71 @@
-const { getUsersContainer } = require("./cosmosClient");
+const { getUsersContainer, getRolesContainer } = require("./cosmosClient");
+
+const SYSTEM_REGISTRATION_ROLES = [
+  { roleName: "Doctor", type: "system", skipNpiValidation: false },
+  { roleName: "Nurse Practitioner", type: "system", skipNpiValidation: false },
+  { roleName: "Staff", type: "system", skipNpiValidation: true },
+];
+
+function normalizeRoleName(roleName) {
+  if (!roleName || typeof roleName !== "string") {
+    return null;
+  }
+
+  const trimmedRoleName = roleName.trim();
+  if (trimmedRoleName === "BO") {
+    return "Staff";
+  }
+
+  return trimmedRoleName;
+}
+
+async function listRegistrationRoles(clinicName = "") {
+  const trimmedClinicName = (clinicName || "").trim();
+
+  if (!trimmedClinicName) {
+    return SYSTEM_REGISTRATION_ROLES;
+  }
+
+  try {
+    const rolesContainer = getRolesContainer();
+    const querySpec = {
+      query:
+        "SELECT c.roleName, c.type, c.skipNpiValidation FROM c WHERE c.clinicName = @clinicName AND c.isActive = true AND c.showInRegistration = true",
+      parameters: [{ name: "@clinicName", value: trimmedClinicName }],
+    };
+
+    const { resources } = await rolesContainer.items.query(querySpec).fetchAll();
+    const customRoles = resources.map((roleDoc) => ({
+      roleName: roleDoc.roleName,
+      type: roleDoc.type || "custom",
+      skipNpiValidation: Boolean(roleDoc.skipNpiValidation),
+    }));
+
+    return [...SYSTEM_REGISTRATION_ROLES, ...customRoles];
+  } catch (error) {
+    console.error("Failed to list registration roles:", error);
+    return SYSTEM_REGISTRATION_ROLES;
+  }
+}
+
+async function getRoleRegistrationConfig(roleName, clinicName = "") {
+  const normalizedRoleName = normalizeRoleName(roleName);
+  if (!normalizedRoleName) {
+    return null;
+  }
+
+  const systemRole = SYSTEM_REGISTRATION_ROLES.find(
+    (role) => role.roleName === normalizedRoleName
+  );
+  if (systemRole) {
+    return systemRole;
+  }
+
+  const availableRoles = await listRegistrationRoles(clinicName);
+  return (
+    availableRoles.find((role) => role.roleName === normalizedRoleName) || null
+  );
+}
 
 async function checkNPIDuplicate(npiNumber) {
   const container = getUsersContainer();
@@ -10,6 +77,26 @@ async function checkNPIDuplicate(npiNumber) {
 
   const { resources } = await container.items.query(querySpec).fetchAll();
   return resources.length > 0;
+}
+
+async function isFirstCompletedUserForClinic(clinicName, userId) {
+  const trimmedClinicName = (clinicName || "").replace(/\s+/g, " ").trim();
+  if (!trimmedClinicName) {
+    return false;
+  }
+
+  const container = getUsersContainer();
+  const querySpec = {
+    query:
+      "SELECT VALUE COUNT(1) FROM c WHERE c.profileComplete = true AND LTRIM(RTRIM(LOWER(c.clinicName))) = @clinicName AND c.userId != @userId",
+    parameters: [
+      { name: "@clinicName", value: trimmedClinicName.toLowerCase() },
+      { name: "@userId", value: userId },
+    ],
+  };
+
+  const { resources } = await container.items.query(querySpec).fetchAll();
+  return (resources[0] || 0) === 0;
 }
 
 
@@ -43,6 +130,10 @@ async function verifyStandaloneAuth(email, userId) {
       profileComplete: false,
       prodAccessGranted: true,
       isActive: true,
+      customPermissions: {
+        overrides: {},
+      },
+      permissionAuditLog: [],
       created_at: new Date().toISOString(),
       lastLoginAt: new Date().toISOString()
     };
@@ -89,9 +180,11 @@ async function registerStandaloneUser(data) {
   const container = getUsersContainer();
 
    // Check for duplicate NPI
-  const npiExists = await checkNPIDuplicate(data.npiNumber);
-  if (npiExists) {
-    throw new Error("NPI_DUPLICATE");
+  if (data.npiNumber) {
+    const npiExists = await checkNPIDuplicate(data.npiNumber);
+    if (npiExists) {
+      throw new Error("NPI_DUPLICATE");
+    }
   }
 
   // Cross-partition query to fetch existing user record by userId
@@ -107,6 +200,33 @@ async function registerStandaloneUser(data) {
   }
 
   const existingUser = resources[0];
+  const isBootstrapClinicAdmin =
+    !existingUser.profileComplete &&
+    (await isFirstCompletedUserForClinic(data.clinicName, data.userId));
+  const updatedAt = new Date().toISOString();
+  const nextOverrides = {
+    ...((existingUser.customPermissions && existingUser.customPermissions.overrides) || {}),
+  };
+
+  if (isBootstrapClinicAdmin) {
+    nextOverrides["admin.manage_rbac"] = "write";
+  }
+
+  const nextAuditLog = [...(existingUser.permissionAuditLog || [])];
+  if (
+    isBootstrapClinicAdmin &&
+    ((existingUser.customPermissions && existingUser.customPermissions.overrides?.["admin.manage_rbac"]) ||
+      "none") !== "write"
+  ) {
+    nextAuditLog.push({
+      action: "bootstrap_clinic_admin_granted",
+      permission: "admin.manage_rbac",
+      newLevel: "write",
+      performedBy: "system-bootstrap",
+      timestamp: updatedAt,
+      clinicName: (data.clinicName || "").replace(/\s+/g, " ").trim(),
+    });
+  }
 
   // Update user with registration data
   const updatedUser = {
@@ -123,7 +243,7 @@ async function registerStandaloneUser(data) {
 
     // Professional Info
     role: data.role,
-    npiNumber: data.npiNumber,
+    npiNumber: data.npiNumber || "",
     specialty: data.specialty,
     subSpecialty: data.subSpecialty || "",
     statesOfLicense: data.statesOfLicense,
@@ -145,7 +265,18 @@ async function registerStandaloneUser(data) {
 
     // Status
     profileComplete: true,
-    updatedAt: new Date().toISOString()
+    customPermissions: {
+      ...(existingUser.customPermissions || {}),
+      overrides: nextOverrides,
+      ...(isBootstrapClinicAdmin
+        ? {
+            lastUpdatedBy: "system-bootstrap",
+            lastUpdatedAt: updatedAt,
+          }
+        : {}),
+    },
+    permissionAuditLog: nextAuditLog.slice(-50),
+    updatedAt
   };
 
   
@@ -166,5 +297,8 @@ async function registerStandaloneUser(data) {
 module.exports = {
   verifyStandaloneAuth,
   registerStandaloneUser,
-  checkNPIDuplicate
+  checkNPIDuplicate,
+  listRegistrationRoles,
+  getRoleRegistrationConfig,
+  normalizeRoleName,
 };

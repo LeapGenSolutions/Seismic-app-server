@@ -6,6 +6,7 @@ const {
   getRoleRegistrationConfig,
   normalizeRoleName,
 } = require("../services/standaloneService");
+const { getInvitationForRegistration } = require("../services/invitationsService");
 const { verifyIdToken, generateJWT, extractUserInfo } = require("../services/tokenVerification");
 const { authenticateCIAM, requireRegistration } = require("../middleware/ciamAuth");
 
@@ -71,12 +72,29 @@ router.post("/auth/verify", async (req, res) => {
 router.post("/register", authenticateCIAM, async (req, res) => {
   try {
     const data = req.body;
+    let invitation = null;
+    if (data.invitationToken) {
+      const registrationEmail = data.primaryEmail || req.user.email;
+      invitation = await getInvitationForRegistration(
+        data.invitationToken,
+        registrationEmail
+      );
+      data.clinicName = invitation.clinicName;
+      data.role = invitation.roleName;
+    }
+
     const normalizedRole = normalizeRoleName(data.role);
     data.role = normalizedRole;
-    const roleConfig = await getRoleRegistrationConfig(
-      normalizedRole,
-      data.clinicName
-    );
+    let roleConfig = invitation
+      ? {
+          roleName: invitation.roleName,
+          type: "invited",
+          skipNpiValidation: Boolean(invitation.skipNpiValidation),
+        }
+      : await getRoleRegistrationConfig(
+          normalizedRole,
+          data.clinicName
+        );
 
     if (!roleConfig) {
       return res.status(400).json({
@@ -132,6 +150,13 @@ router.post("/register", authenticateCIAM, async (req, res) => {
       });
     }
 
+    if (invitation && data.primaryEmail.trim().toLowerCase() !== invitation.invitedEmail) {
+      return res.status(403).json({
+        error: "Invitation email mismatch",
+        message: "This invitation must be completed with the invited email address.",
+      });
+    }
+
     // Validate legal agreements are true
     if (!data.termsAccepted || !data.privacyAccepted || !data.clinicalResponsibilityAccepted) {
       return res.status(400).json({
@@ -165,6 +190,23 @@ router.post("/register", authenticateCIAM, async (req, res) => {
       return res.status(409).json({
         error: "NPI already registered",
         message: "An account with this NPI number already exists"
+      });
+    }
+
+    if (
+      error.message === "INVITATION_NOT_FOUND" ||
+      error.message === "INVITATION_ALREADY_USED"
+    ) {
+      return res.status(404).json({
+        error: "Invitation unavailable",
+        message: "This invitation is no longer available.",
+      });
+    }
+
+    if (error.message === "INVITATION_EMAIL_MISMATCH") {
+      return res.status(403).json({
+        error: "Invitation email mismatch",
+        message: "This invitation must be completed with the invited email address.",
       });
     }
 

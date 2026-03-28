@@ -29,6 +29,9 @@ const athenaRouter = require("./routes/athena");
 const orderRouter = require("./routes/orders");
 const contactUsRouter = require("./routes/contactUs");
 const rbacRouter = require("./routes/rbac");
+const clinicsRouter = require("./routes/clinics");
+const invitationsRouter = require("./routes/invitations");
+const approvalsRouter = require("./routes/approvals");
 const { initTelemetry } = require("./services/telemetryService");
 
 
@@ -68,6 +71,9 @@ app.use("/api/athena", athenaRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/contact-us", contactUsRouter);
 app.use("/api/rbac", rbacRouter);
+app.use("/api/clinics", clinicsRouter);
+app.use("/api/invitations", invitationsRouter);
+app.use("/api/approvals", approvalsRouter);
 app.use("/api/standalone", standaloneRouter);
 app.use("/api/verify-npi",npiRouter)
 

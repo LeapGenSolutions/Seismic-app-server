@@ -3,11 +3,17 @@ function getEnv(name, fallback = "") {
   return value === undefined ? fallback : String(value).trim();
 }
 
+function normalizeUrl(url) {
+  return String(url).trim().replace(/\/+$/, "");
+}
+
 function getInvitationBaseUrl() {
-  return getEnv(
-    "INVITATION_BASE_URL",
-    "http://localhost:3001/standalone/registration"
-  ).replace(/\/+$/, "");
+  return normalizeUrl(
+    getEnv(
+      "INVITATION_BASE_URL",
+      "http://localhost:3001/standalone/registration"
+    )
+  );
 }
 
 function buildInvitationUrl(token) {

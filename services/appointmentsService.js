@@ -1,8 +1,6 @@
 const { CosmosClient } = require("@azure/cosmos");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const crypto = require("crypto");
-const { start } = require("repl");
-const { blob } = require("stream/consumers");
 const { createPatientBoth } = require("./patientsService");
 const { trackAppointmentAudit } = require("./telemetryService");
 require("dotenv").config();

@@ -79,6 +79,18 @@ async function requireRegistration(req, res, next) {
       });
     }
 
+    if (user.approvalStatus && user.approvalStatus !== "approved") {
+      return res.status(403).json({
+        error: "Approval pending",
+        message:
+          user.approvalStatus === "rejected"
+            ? "Your account access was declined by a clinic administrator."
+            : "Your account is pending administrator approval.",
+        requiresApproval: true,
+        approvalStatus: user.approvalStatus,
+      });
+    }
+
     // Attach full user data to request
     req.userData = user;
     req.customRolePermissions = await resolveCustomRolePermissions(

@@ -1,5 +1,6 @@
 const { CosmosClient } = require("@azure/cosmos");
 const { getUsersContainer } = require("./cosmosClient");
+const { buildBootstrapOverrides } = require("./bootstrapPermissions");
 require("dotenv").config();
 
 const endpoint = process.env.COSMOS_ENDPOINT;
@@ -107,14 +108,15 @@ async function ensureBootstrapClinicAdmins(users = []) {
         }
 
         const updatedAt = new Date().toISOString();
+        const nextOverrides = buildBootstrapOverrides(
+            bootstrapUser.role,
+            (bootstrapUser.customPermissions && bootstrapUser.customPermissions.overrides) || {}
+        );
         const updatedUser = {
             ...bootstrapUser,
             customPermissions: {
                 ...(bootstrapUser.customPermissions || {}),
-                overrides: {
-                    ...((bootstrapUser.customPermissions && bootstrapUser.customPermissions.overrides) || {}),
-                    "admin.manage_rbac": "write",
-                },
+                overrides: nextOverrides,
                 lastUpdatedBy: "system-bootstrap",
                 lastUpdatedAt: updatedAt,
             },
@@ -128,6 +130,15 @@ async function ensureBootstrapClinicAdmins(users = []) {
                     timestamp: updatedAt,
                     clinicName: bootstrapUser.clinicName || "",
                 },
+                ...(bootstrapUser.role === "Staff"
+                    ? [{
+                        action: "bootstrap_clinic_admin_restricted",
+                        newLevel: "admin-only",
+                        performedBy: "system-bootstrap",
+                        timestamp: updatedAt,
+                        clinicName: bootstrapUser.clinicName || "",
+                    }]
+                    : []),
             ],
             updatedAt,
         };

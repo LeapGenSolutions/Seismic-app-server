@@ -1,4 +1,11 @@
 const { getUsersContainer, getRolesContainer } = require("./cosmosClient");
+const { buildBootstrapOverrides } = require("./bootstrapPermissions");
+const { ensureClinicExists } = require("./clinicsService");
+const {
+  consumeInvitation,
+  getInvitationForRegistration,
+} = require("./invitationsService");
+const { trimClinicName } = require("./clinicUtils");
 
 const SYSTEM_REGISTRATION_ROLES = [
   { roleName: "Doctor", type: "system", skipNpiValidation: false },
@@ -80,7 +87,7 @@ async function checkNPIDuplicate(npiNumber) {
 }
 
 async function isFirstCompletedUserForClinic(clinicName, userId) {
-  const trimmedClinicName = (clinicName || "").replace(/\s+/g, " ").trim();
+  const trimmedClinicName = trimClinicName(clinicName);
   if (!trimmedClinicName) {
     return false;
   }
@@ -128,7 +135,7 @@ async function verifyStandaloneAuth(email, userId) {
 
       authType: "CIAM",
       profileComplete: false,
-      prodAccessGranted: true,
+      prodAccessGranted: false,
       isActive: true,
       customPermissions: {
         overrides: {},
@@ -143,6 +150,7 @@ async function verifyStandaloneAuth(email, userId) {
     return {
       isFirstTime: true,
       profileComplete: false,
+      approvalStatus: null,
       userId: userId,
       email: email
     };
@@ -163,6 +171,7 @@ async function verifyStandaloneAuth(email, userId) {
   return {
     isFirstTime: false,
     profileComplete: user.profileComplete || false,
+    approvalStatus: user.approvalStatus || (user.profileComplete ? "approved" : null),
     userId: user.userId,
     email: user.email,
     userData: user.profileComplete ? {
@@ -170,7 +179,9 @@ async function verifyStandaloneAuth(email, userId) {
       lastName: user.lastName,
       npiNumber: user.npiNumber,
       specialty: user.specialty,
-      role: user.role
+      role: user.role,
+      clinicName: user.clinicName,
+      approvalStatus: user.approvalStatus || "approved",
     } : undefined
   };
 }
@@ -178,6 +189,7 @@ async function verifyStandaloneAuth(email, userId) {
 
 async function registerStandaloneUser(data) {
   const container = getUsersContainer();
+  const registrationEmail = (data.primaryEmail || data.email || "").trim().toLowerCase();
 
    // Check for duplicate NPI
   if (data.npiNumber) {
@@ -200,17 +212,24 @@ async function registerStandaloneUser(data) {
   }
 
   const existingUser = resources[0];
+  const invitation =
+    data.invitationToken
+      ? await getInvitationForRegistration(data.invitationToken, registrationEmail)
+      : null;
+  const clinicName = invitation?.clinicName || data.clinicName || existingUser.clinicName;
+  const normalizedRole = normalizeRoleName(invitation?.roleName || data.role);
   const isBootstrapClinicAdmin =
     !existingUser.profileComplete &&
-    (await isFirstCompletedUserForClinic(data.clinicName, data.userId));
+    (await isFirstCompletedUserForClinic(clinicName, data.userId));
   const updatedAt = new Date().toISOString();
-  const nextOverrides = {
-    ...((existingUser.customPermissions && existingUser.customPermissions.overrides) || {}),
-  };
-
-  if (isBootstrapClinicAdmin) {
-    nextOverrides["admin.manage_rbac"] = "write";
-  }
+  const nextOverrides = isBootstrapClinicAdmin
+    ? buildBootstrapOverrides(
+        normalizedRole,
+        (existingUser.customPermissions && existingUser.customPermissions.overrides) || {}
+      )
+    : {
+        ...((existingUser.customPermissions && existingUser.customPermissions.overrides) || {}),
+      };
 
   const nextAuditLog = [...(existingUser.permissionAuditLog || [])];
   if (
@@ -224,7 +243,17 @@ async function registerStandaloneUser(data) {
       newLevel: "write",
       performedBy: "system-bootstrap",
       timestamp: updatedAt,
-      clinicName: (data.clinicName || "").replace(/\s+/g, " ").trim(),
+      clinicName: trimClinicName(clinicName),
+    });
+  }
+
+  if (isBootstrapClinicAdmin && normalizedRole === "Staff") {
+    nextAuditLog.push({
+      action: "bootstrap_clinic_admin_restricted",
+      newLevel: "admin-only",
+      performedBy: "system-bootstrap",
+      timestamp: updatedAt,
+      clinicName: trimClinicName(clinicName),
     });
   }
 
@@ -242,7 +271,7 @@ async function registerStandaloneUser(data) {
     secondaryEmail: data.secondaryEmail || "",
 
     // Professional Info
-    role: data.role,
+    role: normalizedRole,
     npiNumber: data.npiNumber || "",
     specialty: data.specialty,
     subSpecialty: data.subSpecialty || "",
@@ -250,7 +279,7 @@ async function registerStandaloneUser(data) {
     licenseNumber: data.licenseNumber || "",
 
     // Practice Info
-    clinicName: data.clinicName || "",
+    clinicName: clinicName || "",
     practiceAddress: data.practiceAddress || {},
 
     // Legal Agreements
@@ -265,12 +294,25 @@ async function registerStandaloneUser(data) {
 
     // Status
     profileComplete: true,
+    approvalStatus: isBootstrapClinicAdmin ? "approved" : "pending",
+    approvedBy: isBootstrapClinicAdmin ? "system-bootstrap" : null,
+    approvedAt: isBootstrapClinicAdmin ? updatedAt : null,
+    rejectedBy: null,
+    rejectedAt: null,
+    invitedBy: invitation?.invitedByEmail || existingUser.invitedBy || null,
+    invitationId: invitation?.id || existingUser.invitationId || null,
+    invitationToken: null,
+    isStandalone: true,
+    signupType: data.signupType || existingUser.signupType || "standalone",
+    prodAccessGranted: isBootstrapClinicAdmin,
     customPermissions: {
       ...(existingUser.customPermissions || {}),
       overrides: nextOverrides,
-      ...(isBootstrapClinicAdmin
+      ...((isBootstrapClinicAdmin || invitation)
         ? {
-            lastUpdatedBy: "system-bootstrap",
+            lastUpdatedBy: isBootstrapClinicAdmin
+              ? "system-bootstrap"
+              : "invitation-registration",
             lastUpdatedAt: updatedAt,
           }
         : {}),
@@ -284,7 +326,18 @@ async function registerStandaloneUser(data) {
     .item(existingUser.id, existingUser.id)
     .replace(updatedUser);
 
-        console.log('User standalone Registration : Success, record updated');
+  if (isBootstrapClinicAdmin) {
+    await ensureClinicExists(clinicName, data.userId, registrationEmail);
+  }
+
+  if (invitation) {
+    await consumeInvitation(invitation, {
+      userId: data.userId,
+      email: registrationEmail,
+    });
+  }
+
+  console.log("User standalone Registration : Success, record updated");
 
 
   return resource;

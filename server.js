@@ -28,6 +28,16 @@ const npiRouter = require("./routes/npi");
 const athenaRouter = require("./routes/athena");
 const { initTelemetry } = require("./services/telemetryService");
 
+// Billing & Payments Module
+const subscriptionsRouter = require("./routes/subscriptions");
+const paymentMethodsRouter = require("./routes/paymentMethods");
+const seatsRouter = require("./routes/seats");
+const invoicesRouter = require("./routes/invoices");
+const transactionsRouter = require("./routes/transactions");
+const reportsRouter = require("./routes/reports");
+const stripeWebhookRouter = require("./routes/webhooks/stripe");
+const braintreeWebhookRouter = require("./routes/webhooks/braintree");
+const { startAllJobs } = require("./services/billingCronService");
 
 const PORT = process.env.PORT || 8080;
 initTelemetry();
@@ -35,6 +45,13 @@ initTelemetry();
 const app = express();
 // const allowedOrigin = process.env.CORS_ORIGIN_BASE_URL || "https://victorious-mushroom-08b7e7d0f.4.azurestaticapps.net"; // set this in.env
 const allowedOrigin = "*"; // set this in .env
+
+// ─── Webhook routes MUST come before express.json() ──────────────────────────
+// Stripe requires raw body for signature verification
+app.use("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookRouter);
+// Braintree sends urlencoded form data
+app.use("/webhooks/braintree", express.urlencoded({ extended: true }), braintreeWebhookRouter);
+
 app.use(express.json());
 app.use(cors({
   origin: allowedOrigin,
@@ -64,7 +81,15 @@ app.use("/api/post-call-feedback", postCallFeedbackRouter);
 app.use("/api/athena", athenaRouter);
 
 app.use("/api/standalone", standaloneRouter);
-app.use("/api/verify-npi",npiRouter)
+app.use("/api/verify-npi", npiRouter);
+
+// Billing & Payments Module
+app.use("/api/subscriptions", subscriptionsRouter);
+app.use("/api/payment-methods", paymentMethodsRouter);
+app.use("/api/seats", seatsRouter);
+app.use("/api/invoices", invoicesRouter);
+app.use("/api/transactions", transactionsRouter);
+app.use("/api/reports", reportsRouter);
 
 app.post("/get-token", async (req, res) => {
 
@@ -201,6 +226,8 @@ app.post("/webhook", async (req, res) => {
 
   // res.sendStatus(204); // ignored
 });
+
+startAllJobs();
 
 httpServer.listen(PORT, () =>
   console.log(`server is running on port: ${PORT}`)

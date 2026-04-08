@@ -2,7 +2,7 @@ const express = require("express");
 const { postOrdersReferral, postOrdersVaccine, postOrdersProcedure, postOrdersPrescription, postOrdersPatientInfo, postOrdersOther, postOrdersLab, postOrdersImaging, postOrdersDME, getEncounterId} = require("../services/ordersService");
 const router = express.Router();
 
-router.get("/:email/encounters/:appointmentId/encounterId", async (req, res) => {
+router.post("/:email/encounters/:appointmentId/encounterId", async (req, res) => {
     const { email, appointmentId } = req.params;
     const practiceId = req.body.practiceId;
     const date = req.body.date;

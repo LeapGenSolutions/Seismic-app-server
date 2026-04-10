@@ -252,6 +252,43 @@ router.get("/profile", authenticateCIAM, async (req, res) => {
   }
 });
 
+router.put("/profile/preferences", authenticateCIAM, async (req, res) => {
+  try {
+    const { getUsersContainer } = require("../services/cosmosClient");
+    const container = getUsersContainer();
+    const updates = req.body; // e.g., { notifications: { email: true, sms: false }, timeZone: "PST" }
+
+    // Fetch user first to get their Cosmos item id
+    const querySpec = {
+      query: "SELECT * FROM c WHERE c.id = @userId OR c.doctor_id = @userId OR c.doctor_email = @userId",
+      parameters: [{ name: "@userId", value: req.user.userId }]
+    };
+
+    const { resources } = await container.items.query(querySpec).fetchAll();
+    if (resources.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = resources[0];
+
+    // Merge updates safely
+    const updatedUser = {
+      ...user,
+      notifications: updates.notifications ? { ...(user.notifications || {}), ...updates.notifications } : user.notifications,
+      timeZone: updates.timeZone || user.timeZone,
+      updatedAt: new Date().toISOString()
+    };
+
+    const { resource } = await container.item(user.id, user.id).replace(updatedUser);
+
+    res.json({ success: true, user: resource });
+  } catch (error) {
+    console.error("Profile preferences update error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 
 router.get("/dashboard", authenticateCIAM, requireRegistration, async (req, res) => {
   try {

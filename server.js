@@ -34,6 +34,7 @@ const invitationsRouter = require("./routes/invitations");
 const approvalsRouter = require("./routes/approvals");
 const vbcRouter = require("./routes/VBC");
 const { initTelemetry } = require("./services/telemetryService");
+const { generateChatbotToken } = require("./services/chatbotTokenService");
 
 
 const PORT = process.env.PORT || 8080;
@@ -214,6 +215,19 @@ app.post("/webhook", async (req, res) => {
   }
 
   // res.sendStatus(204); // ignored
+});
+
+app.post("/api/chat-bot/get-token", async (req, res) => {
+  const userData = req.body;
+  if(!userData){
+    return res.status(400).json({ error: "Missing user data" });
+  }
+  try{
+    const token = await generateChatbotToken(userData);
+    return res.status(200).json({ token });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to generate chatbot token" });
+  }
 });
 
 httpServer.listen(PORT, () =>

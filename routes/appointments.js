@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { fetchAppointmentsByEmails, fetchAppointmentsByClinic, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment, cancelAppointment } = require("../services/appointmentsService");
+const { fetchAppointmentsByEmails, fetchAppointmentsByClinic, createAppointment, createBulkAppointments, deleteAppointment, updateAppointment, cancelAppointment, pullAthenaAppointments } = require("../services/appointmentsService");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -122,5 +122,16 @@ router.patch("/:email/appointment/:id", async (req, res) => {
   }
 });
 
+
+router.post("/:email/pull", async (req, res) => {
+  try {
+    const { practice_id, provider_id, department_id } = req.body;
+    const result = await pullAthenaAppointments(practice_id, provider_id, department_id);
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("Error pulling Athena appointments:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 module.exports = router;

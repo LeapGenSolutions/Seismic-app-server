@@ -32,7 +32,7 @@ router.get("/all", async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error("Error fetching appointments by clinic:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(err.statusCode || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -130,7 +130,7 @@ router.post("/:email/pull", async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error("Error pulling Athena appointments:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(err.statusCode || 500).json({ error: err.message || "Internal server error" });
   }
 });
 

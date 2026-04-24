@@ -616,7 +616,7 @@ const pullAthenaAppointments = async (practiceId, providerId, departmentId) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          env: process.env.COSMOS_ENDPOINT,
+          env: process.env.ATHENA_ENV || "test",
           LOG_LEVEL: "INFO",
           practice_id: practiceId,
           provider_id: providerId,
@@ -624,7 +624,12 @@ const pullAthenaAppointments = async (practiceId, providerId, departmentId) => {
         }),
       }
     );
-    if (!response.ok) throw new Error(`Athena appointments pull failed: ${response.statusText}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      const error = new Error("Athena appointments pull failed: " + response.status + " " + (errText || response.statusText));
+      error.statusCode = response.status;
+      throw error;
+    }
     return await response.json();
   } catch (err) {
     console.error("Error pulling Athena appointments:", err);

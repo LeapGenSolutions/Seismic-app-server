@@ -268,5 +268,34 @@ async function postAll(practiceId, encounterId, noteText) {
     }
 }
 
+async function putPatientInstructions(practiceId, encounterId, noteText, id) {
+    try {
+        const token = await getToken();
+        const body = new URLSearchParams({
+            patientinstructions: noteText,
+            replaceinstructions: "true",
+        });
 
-module.exports = { postVisitReason, putPhysicalExam, putHPI, putReviewOfSystems, putAssessment, postAll, getToken};
+        const response = await fetch(
+            `${process.env.ATHENA_BASE_URL}/v1/${practiceId}/chart/encounter/${encounterId}/patientgoals/patientinstructions`,
+            {
+                method: "PUT",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: body.toString()
+            }
+        );
+        if(!response.ok){
+            return {success: false, error: `Patient Instructions failed: ${response.statusText}`};
+        }
+        return {success: true, data: await response.json()};
+    } catch (error) {
+        console.error("Error updating patient instructions:", error.message);
+        throw error;
+    }
+}
+
+
+module.exports = { postVisitReason, putPhysicalExam, putHPI, putReviewOfSystems, putAssessment, postAll, getToken, putPatientInstructions};

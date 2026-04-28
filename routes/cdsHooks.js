@@ -1,69 +1,90 @@
 const express = require("express");
 const router = express.Router();
-const { getCDSOrders } = require("../services/cdsHooksService");
 
-// Discovery endpoint — Epic calls this first
+/**
+ * CDS Hooks Discovery Endpoint
+ * URL: GET /cds-services
+ */
 router.get("/", (req, res) => {
   res.json({
     services: [
       {
-        hook: "order-sign",
-        id: "seismic-orders",
-        title: "Seismic Post-Call Order Suggestions",
-        description: "Returns AI-generated order suggestions from Seismic"
+        hook: "patient-view",
+        id: "seismic-patient-view",
+        title: "Seismic Clinical Suggestions",
+        description:
+          "Returns Seismic AI-generated clinical suggestions for the selected patient.",
+        prefetch: {}
       }
     ]
   });
 });
 
-// Hook handler — Epic calls this when doctor signs orders
-router.post("/seismic-orders", async (req, res) => {
-  try {
-    const { context } = req.body;
-    const patientId = context?.patientId || "";
-    const encounterId = context?.encounterId || "";
-
-    const orders = await getCDSOrders(patientId, encounterId);
-
-    if (!orders || orders.length === 0) {
-      return res.json({ cards: [] });
-    }
-
-    const cards = orders.map(order => ({
-      summary: `${order.type || "Order"}: ${order.clinical_content || order.name}`,
-      indicator: "info",
-      source: { label: "Seismic Connect" },
-      selectionBehavior: "at-most-one",
-      suggestions: [
-        {
-          label: `Add ${order.name || order.clinical_content}`,
-          actions: [
-            {
-              type: "create",
-              description: `Create order for ${order.name || order.clinical_content}`,
-              resource: {
-                resourceType:
-                  order.type === "Lab" ? "ServiceRequest" :
-                  order.type === "Imaging" ? "ServiceRequest" :
-                  order.type === "Prescription" ? "MedicationRequest" :
-                  "ServiceRequest",
-                status: "draft",
-                intent: "proposal",
-                subject: { reference: `Patient/${patientId}` },
-                code: { text: order.name || order.clinical_content }
-              }
-            }
-          ]
+/**
+ * Some simulators may call POST /cds-services directly.
+ */
+router.post("/", (req, res) => {
+  res.json({
+    cards: [
+      {
+        summary: "Seismic CDS Hooks service is reachable",
+        indicator: "info",
+        detail:
+          "The Seismic backend successfully received a CDS Hooks request and returned a valid card.",
+        source: {
+          label: "Seismic Connect"
         }
-      ]
-    }));
+      }
+    ]
+  });
+});
 
-    res.json({ cards });
+/**
+ * Patient-view hook endpoint
+ * URL: POST /cds-services/seismic-patient-view
+ */
+router.post("/seismic-patient-view", (req, res) => {
+  const patientId = req.body?.context?.patientId || "unknown patient";
 
-  } catch (error) {
-    console.error("CDS Hooks error:", error);
-    res.json({ cards: [] });
-  }
+  res.json({
+    cards: [
+      {
+        summary: "Seismic AI clinical suggestion available",
+        indicator: "info",
+        detail: `Seismic has generated clinical documentation suggestions for patient ${patientId}. Please review the AI-generated note, vitals, diagnosis, and possible order recommendations before finalizing.`,
+        source: {
+          label: "Seismic Connect"
+        },
+        links: [
+          {
+            label: "Open Seismic Connect",
+            url: "https://dev.seismicconnect.com",
+            type: "absolute"
+          }
+        ]
+      }
+    ]
+  });
+});
+
+/**
+ * Optional order endpoint for future testing.
+ * Simulator may not fully support order-sign, but this helps keep the route ready.
+ */
+router.post("/seismic-orders", (req, res) => {
+  res.json({
+    cards: [
+      {
+        summary: "Seismic suggested orders available",
+        indicator: "info",
+        detail:
+          "Based on the clinical conversation, Seismic suggests reviewing possible labs, medications, or imaging orders. Final order placement must be reviewed and signed by the clinician.",
+        source: {
+          label: "Seismic Connect"
+        }
+      }
+    ]
+  });
 });
 
 module.exports = router;

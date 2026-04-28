@@ -7,7 +7,8 @@ const {
   putHPI,
   putReviewOfSystems,
   putAssessment,
-  postAll
+  postAll,
+  putPatientInstructions
 } = require("../services/athenaService");
 const { trackAppointmentAudit } = require("../services/telemetryService");
 
@@ -200,6 +201,27 @@ router.post("/:email/encounters/:appointmentId/all", async (req, res) => {
       error_message: error.message
     });
     res.status(500).json({ error: error.message });
+  }
+});
+
+// post and update patient instructions/reccomendations.
+router.put("/:email/encounter/:encounterId/post-recommendations", async(req,res) =>{
+  try{
+    const {email, encounterId} = req.params;
+    const {patientId, patientinstructions, id} = req.body;
+    if(!patientId || !patientinstructions || !id){
+      return res.status(400).json({success: false, error: "Missing required fields: patientId, patientinstructions, and id are required."});
+    }
+    if(!encounterId){
+      return res.status(400).json({success: false, error: "Missing required field: encounterId is required."});
+    }
+    const result = await putPatientInstructions(patientId, encounterId, patientinstructions, id);
+    if(!result.success){
+      return res.status(500).json({success: false, error: result.error || "Failed to update patient instructions."});
+    }
+    res.status(200).json({success: true, data: result.data});
+  }catch(error){
+    res.status(500).json({success: false, error: error.message});
   }
 });
 

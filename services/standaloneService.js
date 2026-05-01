@@ -162,7 +162,7 @@ async function verifyStandaloneAuth(email, userId) {
   // Update last login using email as partition key
   await container.item(user.id, user.id).patch([
     {
-      op: "replace",
+      op: "set",
       path: "/lastLoginAt",
       value: new Date().toISOString()
     }
@@ -191,7 +191,7 @@ async function registerStandaloneUser(data) {
   const container = getUsersContainer();
   const registrationEmail = (data.primaryEmail || data.email || "").trim().toLowerCase();
 
-   // Check for duplicate NPI
+  // Check for duplicate NPI
   if (data.npiNumber) {
     const npiExists = await checkNPIDuplicate(data.npiNumber);
     if (npiExists) {
@@ -224,12 +224,12 @@ async function registerStandaloneUser(data) {
   const updatedAt = new Date().toISOString();
   const nextOverrides = isBootstrapClinicAdmin
     ? buildBootstrapOverrides(
-        normalizedRole,
-        (existingUser.customPermissions && existingUser.customPermissions.overrides) || {}
-      )
+      normalizedRole,
+      (existingUser.customPermissions && existingUser.customPermissions.overrides) || {}
+    )
     : {
-        ...((existingUser.customPermissions && existingUser.customPermissions.overrides) || {}),
-      };
+      ...((existingUser.customPermissions && existingUser.customPermissions.overrides) || {}),
+    };
 
   const nextAuditLog = [...(existingUser.permissionAuditLog || [])];
   if (
@@ -287,6 +287,9 @@ async function registerStandaloneUser(data) {
     privacyAccepted: data.privacyAccepted,
     clinicalResponsibilityAccepted: data.clinicalResponsibilityAccepted,
 
+    // Transcript Purging preference
+    transcript_purging: data.transcript_purging,
+
     // Map to existing doctor container fields
     doctor_name: `${data.firstName} ${data.middleName ? data.middleName + ' ' : ''}${data.lastName}`.trim(),
     doctor_email: data.primaryEmail,
@@ -310,18 +313,18 @@ async function registerStandaloneUser(data) {
       overrides: nextOverrides,
       ...((isBootstrapClinicAdmin || invitation)
         ? {
-            lastUpdatedBy: isBootstrapClinicAdmin
-              ? "system-bootstrap"
-              : "invitation-registration",
-            lastUpdatedAt: updatedAt,
-          }
+          lastUpdatedBy: isBootstrapClinicAdmin
+            ? "system-bootstrap"
+            : "invitation-registration",
+          lastUpdatedAt: updatedAt,
+        }
         : {}),
     },
     permissionAuditLog: nextAuditLog.slice(-50),
     updatedAt
   };
 
-  
+
   const { resource } = await container
     .item(existingUser.id, existingUser.id)
     .replace(updatedUser);

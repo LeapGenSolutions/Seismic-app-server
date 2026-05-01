@@ -3,12 +3,12 @@ const { getVbcForPatient } = require("../services/VBCService");
 const router = express.Router();
 
 router.post("/:appointmentId", async (req, res) => {
-    const appointmentData = req.body;
-    if (!appointmentData) {
-        return res.status(400).json({ error: "Appointment data is required" });
+    const patientData = req.body;
+    if (!patientData) {
+        return res.status(400).json({ error: "Patient data is required" });
     }
     try {
-        const result = await getVbcForPatient(appointmentData);
+        const result = await getVbcForPatient(patientData);
         res.status(200).json(result);
     } catch (error) {
         console.error("Error fetching VBC for patient:", error);

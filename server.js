@@ -34,6 +34,7 @@ const clinicsRouter = require("./routes/clinics");
 const invitationsRouter = require("./routes/invitations");
 const approvalsRouter = require("./routes/approvals");
 const vbcRouter = require("./routes/VBC");
+const personalizationRouter = require("./routes/personalization");
 const { initTelemetry } = require("./services/telemetryService");
 const { generateChatbotToken } = require("./services/chatbotTokenService");
 
@@ -81,6 +82,7 @@ app.use("/api/approvals", approvalsRouter);
 app.use("/api/vbc", vbcRouter);
 app.use("/api/standalone", standaloneRouter);
 app.use("/api/verify-npi",npiRouter);
+app.use("/api/personalization", personalizationRouter);
 
 
 app.post("/get-token", async (req, res) => {

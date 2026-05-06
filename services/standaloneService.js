@@ -6,6 +6,9 @@ const {
   getInvitationForRegistration,
 } = require("./invitationsService");
 const { trimClinicName } = require("./clinicUtils");
+const { uploadSignedBaaPdf } = require("./baaDocumentService");
+
+const CURRENT_BAA_VERSION = process.env.CURRENT_BAA_VERSION || "v1.0";
 
 const SYSTEM_REGISTRATION_ROLES = [
   { roleName: "Doctor", type: "system", skipNpiValidation: false },
@@ -212,6 +215,8 @@ async function registerStandaloneUser(data) {
   }
 
   const existingUser = resources[0];
+  const existingUserForUpdate = { ...existingUser };
+  delete existingUserForUpdate.baaSignatureHistory;
   const invitation =
     data.invitationToken
       ? await getInvitationForRegistration(data.invitationToken, registrationEmail)
@@ -257,9 +262,32 @@ async function registerStandaloneUser(data) {
     });
   }
 
+  let signedBaaDocument = null;
+  try {
+    signedBaaDocument = await uploadSignedBaaPdf({
+      user: {
+        ...existingUser,
+        userId: data.userId,
+        primaryEmail: data.primaryEmail,
+        email: registrationEmail,
+        doctor_email: data.primaryEmail,
+      },
+      baaSignature: data.baaSignature || {
+        signed: data.baaAccepted === true,
+        baaVersion: data.baaVersion || CURRENT_BAA_VERSION,
+        signerName: data.baaSignerName || "",
+        manualSignature: data.baaManualSignature || "",
+        signedAt: data.baaSignedAt || updatedAt,
+        agreementTitle: data.baaAgreementTitle || "Seismic Connect Terms and Agreement",
+      },
+    });
+  } catch (error) {
+    console.error("Signed BAA document upload failed:", error);
+  }
+
   // Update user with registration data
   const updatedUser = {
-    ...existingUser,
+    ...existingUserForUpdate,
 
     // Name fields
     firstName: data.firstName,
@@ -286,6 +314,37 @@ async function registerStandaloneUser(data) {
     termsAccepted: data.termsAccepted,
     privacyAccepted: data.privacyAccepted,
     clinicalResponsibilityAccepted: data.clinicalResponsibilityAccepted,
+    baaAccepted: data.baaAccepted === true,
+    baaSigned: data.baaAccepted === true,
+    baaVersion: data.baaVersion || CURRENT_BAA_VERSION,
+    baaSignedAt: data.baaSignedAt || updatedAt,
+    baaSignerName: data.baaSignerName || "",
+    baaManualSignature: data.baaManualSignature || "",
+    baaAgreementTitle: data.baaAgreementTitle || "Seismic Connect Terms and Agreement",
+    baaAgreementBlobName: signedBaaDocument?.agreementBlobName || existingUser.baaAgreementBlobName || "",
+    baaAgreementContainer: signedBaaDocument?.containerName || existingUser.baaAgreementContainer || "",
+    baaAgreementUrl: signedBaaDocument?.agreementUrl || existingUser.baaAgreementUrl || "",
+    baaAgreementContentType: signedBaaDocument?.agreementContentType || existingUser.baaAgreementContentType || "",
+    baaAgreementSizeBytes: signedBaaDocument?.agreementSizeBytes || existingUser.baaAgreementSizeBytes || null,
+    baaSignatureCertificateBlobName: signedBaaDocument?.signatureBlobName || existingUser.baaSignatureCertificateBlobName || "",
+    baaSignatureCertificateContainer: signedBaaDocument?.containerName || existingUser.baaSignatureCertificateContainer || "",
+    baaSignatureCertificateUrl: signedBaaDocument?.signatureUrl || existingUser.baaSignatureCertificateUrl || "",
+    baaSignatureCertificateContentType: signedBaaDocument?.signatureContentType || existingUser.baaSignatureCertificateContentType || "",
+    baaSignatureCertificateSizeBytes: signedBaaDocument?.signatureSizeBytes || existingUser.baaSignatureCertificateSizeBytes || null,
+    baaSignature: {
+      signed: data.baaAccepted === true,
+      version: data.baaVersion || CURRENT_BAA_VERSION,
+      signerName: data.baaSignerName || "",
+      manualSignature: data.baaManualSignature || "",
+      signedAt: data.baaSignedAt || updatedAt,
+      agreementTitle: data.baaAgreementTitle || "Seismic Connect Terms and Agreement",
+      agreementBlobName: signedBaaDocument?.agreementBlobName || "",
+      agreementContainer: signedBaaDocument?.containerName || "",
+      agreementUrl: signedBaaDocument?.agreementUrl || "",
+      signatureCertificateBlobName: signedBaaDocument?.signatureBlobName || "",
+      signatureCertificateContainer: signedBaaDocument?.containerName || "",
+      signatureCertificateUrl: signedBaaDocument?.signatureUrl || "",
+    },
 
     // Transcript Purging preference
     transcript_purging: data.transcript_purging,
@@ -346,6 +405,83 @@ async function registerStandaloneUser(data) {
   return resource;
 }
 
+async function signCurrentBaaForUser(user, data = {}) {
+  const container = getUsersContainer();
+  const userForUpdate = { ...user };
+  delete userForUpdate.baaSignatureHistory;
+  const updatedAt = new Date().toISOString();
+  const baaVersion = data.baaVersion || CURRENT_BAA_VERSION;
+  const baaSignedAt = data.baaSignedAt || updatedAt;
+  const baaSignerName = String(data.baaSignerName || data.signerName || "").trim();
+  const baaAgreementTitle = data.baaAgreementTitle || "Seismic Connect Terms and Agreement";
+  const baaManualSignature = data.baaManualSignature || "";
+
+  let signedBaaDocument = null;
+  let signedBaaUploadError = null;
+  try {
+    signedBaaDocument = await uploadSignedBaaPdf({
+      user,
+      baaSignature: data.baaSignature || {
+        signed: true,
+        baaVersion,
+        signerName: baaSignerName,
+        manualSignature: baaManualSignature,
+        signedAt: baaSignedAt,
+        agreementTitle: baaAgreementTitle,
+        agreementText: data.agreementText || "",
+      },
+    });
+  } catch (error) {
+    signedBaaUploadError = error?.message || "Failed to upload signed BAA document";
+    console.error("Signed BAA document upload failed:", error);
+  }
+
+  const signatureRecord = {
+    signed: true,
+    version: baaVersion,
+    signerName: baaSignerName,
+    manualSignature: baaManualSignature,
+    signedAt: baaSignedAt,
+    agreementTitle: baaAgreementTitle,
+    agreementBlobName: signedBaaDocument?.agreementBlobName || "",
+    agreementContainer: signedBaaDocument?.containerName || "",
+    agreementUrl: signedBaaDocument?.agreementUrl || "",
+    signatureCertificateBlobName: signedBaaDocument?.signatureBlobName || "",
+    signatureCertificateContainer: signedBaaDocument?.containerName || "",
+    signatureCertificateUrl: signedBaaDocument?.signatureUrl || "",
+    documentUploadError: signedBaaUploadError,
+  };
+
+  const updatedUser = {
+    ...userForUpdate,
+    baaAccepted: true,
+    baaSigned: true,
+    baaVersion,
+    baaSignedAt,
+    baaSignerName,
+    baaManualSignature,
+    baaAgreementTitle,
+    baaAgreementBlobName: signedBaaDocument?.agreementBlobName || user.baaAgreementBlobName || "",
+    baaAgreementContainer: signedBaaDocument?.containerName || user.baaAgreementContainer || "",
+    baaAgreementUrl: signedBaaDocument?.agreementUrl || user.baaAgreementUrl || "",
+    baaAgreementContentType: signedBaaDocument?.agreementContentType || user.baaAgreementContentType || "",
+    baaAgreementSizeBytes: signedBaaDocument?.agreementSizeBytes || user.baaAgreementSizeBytes || null,
+    baaSignatureCertificateBlobName: signedBaaDocument?.signatureBlobName || user.baaSignatureCertificateBlobName || "",
+    baaSignatureCertificateContainer: signedBaaDocument?.containerName || user.baaSignatureCertificateContainer || "",
+    baaSignatureCertificateUrl: signedBaaDocument?.signatureUrl || user.baaSignatureCertificateUrl || "",
+    baaSignatureCertificateContentType: signedBaaDocument?.signatureContentType || user.baaSignatureCertificateContentType || "",
+    baaSignatureCertificateSizeBytes: signedBaaDocument?.signatureSizeBytes || user.baaSignatureCertificateSizeBytes || null,
+    baaSignature: signatureRecord,
+    updatedAt,
+  };
+
+  const { resource } = await container
+    .item(user.id, user.id)
+    .replace(updatedUser);
+
+  return resource;
+}
+
 
 
 
@@ -353,6 +489,7 @@ async function registerStandaloneUser(data) {
 module.exports = {
   verifyStandaloneAuth,
   registerStandaloneUser,
+  signCurrentBaaForUser,
   checkNPIDuplicate,
   listRegistrationRoles,
   getRoleRegistrationConfig,

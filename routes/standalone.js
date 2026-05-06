@@ -3,12 +3,15 @@ const router = express.Router();
 const {
   verifyStandaloneAuth,
   registerStandaloneUser,
+  signCurrentBaaForUser,
   getRoleRegistrationConfig,
   normalizeRoleName,
 } = require("../services/standaloneService");
 const { getInvitationForRegistration } = require("../services/invitationsService");
 const { verifyIdToken, generateJWT, extractUserInfo } = require("../services/tokenVerification");
 const { authenticateCIAM, requireRegistration } = require("../middleware/ciamAuth");
+
+const CURRENT_BAA_VERSION = process.env.CURRENT_BAA_VERSION || "v1.0";
 
 
 
@@ -118,7 +121,11 @@ router.post("/register", authenticateCIAM, async (req, res) => {
       'statesOfLicense',
       'termsAccepted',
       'privacyAccepted',
-      'clinicalResponsibilityAccepted'
+      'clinicalResponsibilityAccepted',
+      'baaAccepted',
+      'baaVersion',
+      'baaSignedAt',
+      'baaSignerName'
     ];
 
     if (shouldValidateNpi) {
@@ -161,6 +168,19 @@ router.post("/register", authenticateCIAM, async (req, res) => {
     if (!data.termsAccepted || !data.privacyAccepted || !data.clinicalResponsibilityAccepted) {
       return res.status(400).json({
         error: "All legal agreements must be accepted"
+      });
+    }
+
+    if (
+      data.baaAccepted !== true ||
+      data.baaVersion !== CURRENT_BAA_VERSION ||
+      !data.baaSignedAt ||
+      !data.baaSignerName ||
+      String(data.baaSignerName).trim().length < 2
+    ) {
+      return res.status(400).json({
+        error: "BAA signature required",
+        message: `The current BAA version (${CURRENT_BAA_VERSION}) must be reviewed and signed before registration.`
       });
     }
 
@@ -243,6 +263,7 @@ router.get("/profile", authenticateCIAM, async (req, res) => {
     delete user._etag;
     delete user._attachments;
     delete user._ts;
+    delete user.baaSignatureHistory;
 
     res.json(user);
 
@@ -278,13 +299,90 @@ router.put("/profile/preferences", authenticateCIAM, async (req, res) => {
       timeZone: updates.timeZone || user.timeZone,
       updatedAt: new Date().toISOString()
     };
+    delete updatedUser.baaSignatureHistory;
 
     const { resource } = await container.item(user.id, user.id).replace(updatedUser);
+    delete resource.baaSignatureHistory;
 
     res.json({ success: true, user: resource });
   } catch (error) {
     console.error("Profile preferences update error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/baa/status", authenticateCIAM, requireRegistration, async (req, res) => {
+  try {
+    const user = req.userData;
+    const signedCurrentVersion = user.baaAccepted === true;
+
+    return res.json({
+      signed: signedCurrentVersion,
+      accepted: user.baaAccepted === true,
+      requiredVersion: CURRENT_BAA_VERSION,
+      signedVersion: user.baaVersion || null,
+      signedAt: user.baaSignedAt || null,
+      signerName: user.baaSignerName || null,
+      agreementUrl: user.baaAgreementUrl || null,
+      agreementBlobName: user.baaAgreementBlobName || null,
+      agreementContainer: user.baaAgreementContainer || null,
+      signatureCertificateUrl: user.baaSignatureCertificateUrl || null,
+      signatureCertificateBlobName: user.baaSignatureCertificateBlobName || null,
+      signatureCertificateContainer: user.baaSignatureCertificateContainer || null,
+    });
+  } catch (error) {
+    console.error("BAA status error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to load BAA status",
+    });
+  }
+});
+
+router.post("/baa/sign", authenticateCIAM, requireRegistration, async (req, res) => {
+  try {
+    const data = req.body || {};
+    const signerName = String(data.baaSignerName || data.signerName || "").trim();
+
+    if (
+      data.baaVersion !== CURRENT_BAA_VERSION ||
+      !signerName ||
+      signerName.length < 2
+    ) {
+      return res.status(400).json({
+        error: "BAA signature required",
+        message: `The current BAA version (${CURRENT_BAA_VERSION}) must be reviewed and signed.`,
+      });
+    }
+
+    const user = await signCurrentBaaForUser(req.userData, {
+      ...data,
+      baaSignerName: signerName,
+      baaSignedAt: data.baaSignedAt || new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      user,
+      baa: {
+        signed: true,
+        version: user.baaVersion,
+        signedAt: user.baaSignedAt,
+        signerName: user.baaSignerName,
+        agreementUrl: user.baaAgreementUrl,
+        agreementBlobName: user.baaAgreementBlobName,
+        agreementContainer: user.baaAgreementContainer,
+        signatureCertificateUrl: user.baaSignatureCertificateUrl,
+        signatureCertificateBlobName: user.baaSignatureCertificateBlobName,
+        signatureCertificateContainer: user.baaSignatureCertificateContainer,
+      },
+    });
+  } catch (error) {
+    console.error("BAA sign error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to sign BAA",
+    });
   }
 });
 

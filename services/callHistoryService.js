@@ -66,6 +66,12 @@ function getBootstrapSortValue(user) {
     );
 }
 
+function omitBaaSignatureHistory(user = {}) {
+    const nextUser = { ...user };
+    delete nextUser.baaSignatureHistory;
+    return nextUser;
+}
+
 async function ensureBootstrapClinicAdmins(users = []) {
     const container = getUsersContainer();
     const usersByClinic = users.reduce((acc, user) => {
@@ -142,15 +148,16 @@ async function ensureBootstrapClinicAdmins(users = []) {
             ],
             updatedAt,
         };
+        delete updatedUser.baaSignatureHistory;
 
         const { resource } = await container
             .item(bootstrapUser.id, bootstrapUser.id)
             .replace(updatedUser);
 
-        updatedUsers.set(resource.id, resource);
+        updatedUsers.set(resource.id, omitBaaSignatureHistory(resource));
     }
 
-    return users.map((user) => updatedUsers.get(user.id) || user);
+    return users.map((user) => updatedUsers.get(user.id) || omitBaaSignatureHistory(user));
 }
 
 async function fetchDoctors(clinicName) {
@@ -165,7 +172,8 @@ async function fetchDoctors(clinicName) {
             };
         }
         const { resources: items } = await container.items.query(querySpec).fetchAll();
-        return await ensureBootstrapClinicAdmins(items);
+        const users = await ensureBootstrapClinicAdmins(items);
+        return users.map(omitBaaSignatureHistory);
     } catch (error) {
         console.error("Error in fetchDoctors:", error);
         throw new Error("Item not found");

@@ -69,6 +69,7 @@ async function requireRegistration(req, res, next) {
     }
 
     const user = resources[0];
+    delete user.baaSignatureHistory;
 
     // Check if profile is complete (NPI verified)
     if (!user.profileComplete) {

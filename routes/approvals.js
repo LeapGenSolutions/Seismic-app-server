@@ -83,10 +83,12 @@ router.put(
         rejectedAt: null,
         updatedAt: now,
       };
+      delete updatedUser.baaSignatureHistory;
 
       const { resource } = await getUsersContainer()
         .item(existingUser.id, existingUser.id)
         .replace(updatedUser);
+      delete resource.baaSignatureHistory;
 
       return res.json({
         success: true,
@@ -132,10 +134,12 @@ router.put(
         rejectedAt: now,
         updatedAt: now,
       };
+      delete updatedUser.baaSignatureHistory;
 
       const { resource } = await getUsersContainer()
         .item(existingUser.id, existingUser.id)
         .replace(updatedUser);
+      delete resource.baaSignatureHistory;
 
       return res.json({
         success: true,

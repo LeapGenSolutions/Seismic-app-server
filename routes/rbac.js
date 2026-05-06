@@ -460,6 +460,7 @@ router.delete("/roles/:id", async (req, res) => {
           role: normalizeRole(replacementRole.roleName) || replacementRole.roleName,
           updatedAt,
         };
+        delete updatedUser.baaSignatureHistory;
 
         await usersContainer
           .item(existingUser.id, existingUser.id)
@@ -547,6 +548,7 @@ router.put("/users/assign-role", async (req, res) => {
         role: normalizeRole(targetRole.roleName) || targetRole.roleName,
         updatedAt,
       };
+      delete updatedUser.baaSignatureHistory;
 
       const { resource } = await container
         .item(existingUser.id, existingUser.id)
@@ -653,6 +655,7 @@ router.put("/manage", async (req, res) => {
         ],
         updatedAt,
       };
+      delete updatedUser.baaSignatureHistory;
 
       const { resource } = await container
         .item(existingUser.id, existingUser.id)

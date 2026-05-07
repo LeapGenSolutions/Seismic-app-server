@@ -208,19 +208,20 @@ router.post("/:email/encounters/:appointmentId/all", async (req, res) => {
 router.put("/:email/encounter/:encounterId/post-recommendations", async(req,res) =>{
   try{
     const {email, encounterId} = req.params;
-    const {patientId, patientinstructions, id} = req.body;
-    if(!patientId || !patientinstructions || !id){
-      return res.status(400).json({success: false, error: "Missing required fields: patientId, patientinstructions, and id are required."});
+    const {practiceID, patientinstructions, id} = req.body;
+    if(!practiceID || !patientinstructions || !id){
+      return res.status(400).json({success: false, error: "Missing required fields: practiceID, patientinstructions, and id are required."});
     }
     if(!encounterId){
       return res.status(400).json({success: false, error: "Missing required field: encounterId is required."});
     }
-    const result = await putPatientInstructions(patientId, encounterId, patientinstructions, id);
+    const result = await putPatientInstructions(practiceID, encounterId, patientinstructions, id);
     if(!result.success){
       return res.status(500).json({success: false, error: result.error || "Failed to update patient instructions."});
     }
     res.status(200).json({success: true, data: result.data});
   }catch(error){
+    console.log("Error while posting patient instructions: " + error);
     res.status(500).json({success: false, error: error.message});
   }
 });

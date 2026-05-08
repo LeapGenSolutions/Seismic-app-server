@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const removeMarkdown = require('remove-markdown');
 
 const {
   postVisitReason,
@@ -215,7 +216,9 @@ router.put("/:email/encounter/:encounterId/post-recommendations", async(req,res)
     if(!encounterId){
       return res.status(400).json({success: false, error: "Missing required field: encounterId is required."});
     }
-    const result = await putPatientInstructions(practiceID, encounterId, patientinstructions, id);
+    // Convert markdown/bullets to plain text
+    const plainPatientinstructions = removeMarkdown(patientinstructions).replace(/\n{2,}/g, '\n').replace(/^\s*-\s*/gm, '');
+    const result = await putPatientInstructions(practiceID, encounterId, plainPatientinstructions, id);
     if(!result.success){
       return res.status(500).json({success: false, error: result.error || "Failed to update patient instructions."});
     }

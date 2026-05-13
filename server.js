@@ -48,7 +48,7 @@ const allowedOrigin = "*"; // set this in .env
 app.use(express.json());
 app.use(cors({
   origin: allowedOrigin,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 

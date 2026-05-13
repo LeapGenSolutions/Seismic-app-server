@@ -35,4 +35,21 @@ async function patchSoapNotesByAppointment(id, partitionKey, updatedSoap) {
     }
 }
 
-module.exports = { fetchSOAPByAppointment, patchSoapNotesByAppointment };
+async function AddPatientIdAndEncounterIdToSOAP(id, partitionKey, patientId, encounterId) {
+    const database = client.database(process.env.COSMOS_SEISMIC_ANALYSIS);
+    const container = database.container("SOAP_Container");
+    try {
+        const { resource: item } = await container.item(id, partitionKey).read();
+        const updatedItem = { 
+            ...item,
+            "ehr_patient_id": patientId || "",
+            "ehr_encounter_id": encounterId || ""
+        };
+        await container.item(id, partitionKey).replace(updatedItem);
+    } catch (err) {
+        console.error(err);
+        throw new Error({ error: "Failed to update SOAP notes" });
+    }
+}
+
+module.exports = { fetchSOAPByAppointment, patchSoapNotesByAppointment, AddPatientIdAndEncounterIdToSOAP };

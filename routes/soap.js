@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { fetchSOAPByAppointment, patchSoapNotesByAppointment } = require("../services/soapService");
+const { fetchSOAPByAppointment, patchSoapNotesByAppointment, AddPatientIdAndEncounterIdToSOAP } = require("../services/soapService");
 const { trackAppointmentAudit } = require("../services/telemetryService");
 
 router.get("/:id", async (req, res) => {
@@ -98,5 +98,23 @@ router.patch("/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to update SOAP notes" });
   }
 });
+
+router.patch("/:id/:patientId/:encounterId", async (req, res) => {
+  try {
+    const { id, patientId, encounterId } = req.params;
+    const partitionKey = req.query.username;
+    if( !id || !patientId || !encounterId) {
+      return res.status(400).json({ success: false, error: "id, patientId and encounterId are required in the path parameters" });
+    }
+    if (!partitionKey) {
+      return res.status(400).json({ success: false, error: "partitionKey query param is required" });
+    }
+    await AddPatientIdAndEncounterIdToSOAP(id, partitionKey, patientId, encounterId);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Failed to update SOAP notes" });
+  }
+});
+
 
 module.exports = router;
